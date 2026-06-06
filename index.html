@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StarGaze — Stargazing & Sightseeing Planner</title>
+    <meta
+      name="description"
+      content="Find the best nights for stargazing with real-time weather data, cloud coverage analysis, interactive sky maps, and nearby sightseeing spots."
+    />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="lib/leaflet.css" />
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="src/styles/main.css?v=3" />
+
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔭</text></svg>"
+    />
+  </head>
+  <body>
+    <!-- Full Screen Map Background -->
+    <div id="map-background" class="map-background">
+      <div id="map"></div>
+
+      <!-- Curated Spots Floating Panel -->
+      <div
+        id="curated-spots-panel"
+        style="
+          position: absolute;
+          bottom: 30px;
+          right: 30px;
+          z-index: 1000;
+          background: rgba(15, 23, 42, 0.85);
+          backdrop-filter: blur(12px);
+          padding: 16px;
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          min-width: 250px;
+          display: none;
+        "
+      >
+        <h4
+          style="
+            margin: 0 0 12px 0;
+            color: #fbbf24;
+            font-family: 'Outfit', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          "
+        >
+          <span>✨</span> Curated Spots
+        </h4>
+        <div id="curated-spots-list" style="display: flex; flex-direction: column; gap: 8px">
+          <!-- Filled via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer" class="ui-layer">
+      <!-- Floating Header -->
+      <header class="floating-header">
+        <div class="logo">🔭 StarGaze</div>
+        <div class="search-container">
+          <div style="display: flex; gap: 0.5rem; align-items: center">
+            <input
+              type="text"
+              id="search-input"
+              placeholder="Search city or place..."
+              autocomplete="off"
+              aria-label="Search location"
+              style="flex: 1"
+            />
+            <button
+              id="favorite-btn"
+              title="Toggle Favorite"
+              style="
+                background: none;
+                border: none;
+                font-size: 1.5rem;
+                cursor: pointer;
+                color: #cbd5e1;
+                padding: 0.2rem;
+              "
+            >
+              ☆
+            </button>
+          </div>
+          <div id="search-results" class="search-dropdown" role="listbox"></div>
+          <div id="favorites-list" class="favorites-list"></div>
+        </div>
+        <div class="header-actions">
+          <button id="settings-btn" type="button" title="Settings" class="icon-btn">⚙️</button>
+          <button id="locate-btn" type="button" class="action-btn"><span class="btn-icon">📍</span> My Location</button>
+        </div>
+      </header>
+
+      <!-- Floating Map Controls (Top Right) -->
+      <div class="floating-controls glass-card" id="map-layers-control">
+        <!-- Basemap Layer -->
+        <div class="layer-control-group" style="margin-bottom: 0.8rem">
+          <label>🗺️ Basemap:</label>
+          <select id="basemap-select" class="layer-select">
+            <option value="osm" selected>OpenStreetMap (Default)</option>
+            <option value="dark">CartoDB Dark Matter</option>
+            <option value="satellite">ESRI Satellite</option>
+          </select>
+        </div>
+
+        <!-- Weather / Cloud Layer -->
+        <div class="layer-control-group">
+          <label>☁️ Weather Overlay:</label>
+          <select id="weather-layer-select" class="layer-select">
+            <option value="none" selected>None</option>
+            <option value="satellite">Global Satellite (Himawari/GOES)</option>
+            <option value="nasa">Historical Daily Clouds (NASA GIBS)</option>
+            <option value="radar">Precipitation Radar (RainViewer)</option>
+          </select>
+
+          <div id="satellite-band-control" class="hidden" style="margin-top: 0.5rem; display: flex; gap: 0.4rem">
+            <button
+              id="sat-band-toggle"
+              class="map-control-btn"
+              type="button"
+              style="
+                background: var(--primary);
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 0.25rem 0.5rem;
+                cursor: pointer;
+                font-size: 0.8rem;
+              "
+            >
+              🌡️ IR
+            </button>
+            <span style="font-size: 0.7rem; color: #aaa; align-self: center">Toggle IR / True-Color</span>
+          </div>
+          <div style="margin-top: 0.3rem">
+            <a
+              id="zoom-earth-link"
+              href="#"
+              target="_blank"
+              rel="noopener"
+              style="font-size: 0.7rem; color: var(--accent-cyan); text-decoration: none"
+              >🌍 Open Zoom Earth</a
+            >
+          </div>
+
+          <div id="nasa-date-control" class="hidden" style="margin-top: 0.5rem">
+            <label style="font-size: 0.75rem; color: #999; display: block; margin-bottom: 0.2rem">Select Date</label>
+            <input
+              type="date"
+              id="nasa-date-picker"
+              style="
+                width: 100%;
+                padding: 0.4rem;
+                border-radius: 4px;
+                background: rgba(0, 0, 0, 0.5);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                color: white;
+                font-size: 0.85rem;
+                color-scheme: dark;
+              "
+            />
+          </div>
+          <label style="font-size: 0.75rem; color: #999; margin-top: 0.4rem; display: block"
+            >Satellite & Radar Opacity</label
+          >
+          <input type="range" id="cloud-opacity-slider" min="0" max="1" step="0.05" value="0.55" style="width: 100%" />
+        </div>
+
+        <!-- Radar Animation Controls -->
+        <div
+          id="animation-controls"
+          class="hidden"
+          style="margin-top: 0.5rem; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 0.5rem"
+        >
+          <div style="display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem">
+            <button
+              class="map-control-btn"
+              id="cloud-animate"
+              type="button"
+              style="
+                background: var(--primary);
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 0.25rem 0.5rem;
+                cursor: pointer;
+                font-size: 0.8rem;
+              "
+            >
+              ▶ Play
+            </button>
+            <input type="range" id="cloud-time-slider" min="0" max="5" value="5" style="flex: 1" />
+          </div>
+          <div style="text-align: right">
+            <span id="cloud-time-label" style="font-size: 0.8rem; color: var(--text-muted)"></span>
+          </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 0.6rem 0" />
+
+        <!-- Light Pollution Layer -->
+        <div class="layer-control-group">
+          <label>🌌 Light Pollution:</label>
+          <select id="lp-layer-select" class="layer-select">
+            <option value="none" selected>None</option>
+            <option value="viirs">VIIRS Radiance</option>
+            <option value="bortle">Bortle Scale</option>
+          </select>
+          <div id="lp-controls" class="hidden" style="margin-top: 0.4rem">
+            <label style="font-size: 0.75rem; color: #999; display: block">Light Pollution Map Opacity</label>
+            <input type="range" id="lp-opacity-slider" min="0" max="1" step="0.05" value="0.55" style="width: 100%" />
+            <label
+              style="
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.8rem;
+                margin-top: 0.4rem;
+                color: var(--text-muted);
+              "
+            >
+              <span>📅 Year:</span>
+              <span id="lp-year-label">2023</span>
+            </label>
+            <div style="display: flex; gap: 0.4rem; align-items: center">
+              <button
+                id="lp-play-btn"
+                type="button"
+                style="
+                  background: var(--primary);
+                  color: white;
+                  border: none;
+                  border-radius: 5px;
+                  padding: 0.25rem 0.5rem;
+                  cursor: pointer;
+                  font-size: 0.8rem;
+                  white-space: nowrap;
+                "
+              >
+                ▶ Play
+              </button>
+              <input type="range" id="lp-year-slider" min="2012" max="2023" step="1" value="2023" style="flex: 1" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Information Side Panel (Left) -->
+      <aside id="info-panel" class="floating-panel hidden">
+        <!-- Welcome (shown before location is selected) -->
+        <section id="welcome-section" class="welcome">
+          <div class="welcome-icon">🌌</div>
+          <h1>Discover Your Perfect Stargazing Night</h1>
+          <p>
+            Search for any location to get a 7-day stargazing forecast, cloud coverage analysis, interactive sky map,
+            and nearby sightseeing spots.
+          </p>
+        </section>
+
+        <!-- Content (shown after location selected) -->
+        <div id="content-sections" class="hidden">
+          <!-- Location Info -->
+          <section id="location-section" class="glass-card location-info animate-in">
+            <div class="loc-details">
+              <h2 id="loc-name"></h2>
+              <div class="loc-sub" id="loc-country"></div>
+              <div class="loc-coords" id="loc-coords"></div>
+              <div class="weather-stats">
+                <div class="weather-stat">☁️ <span class="stat-value" id="current-cloud"></span></div>
+                <div class="weather-stat">💧 <span class="stat-value" id="current-humidity"></span></div>
+                <div class="weather-stat">👁️ <span class="stat-value" id="current-visibility"></span></div>
+                <div class="weather-stat">💨 <span class="stat-value" id="current-wind"></span></div>
+              </div>
+            </div>
+            <div class="current-weather">
+              <div>
+                <div class="weather-icon" id="current-weather-icon"></div>
+              </div>
+              <div>
+                <div class="weather-temp" id="current-temp"></div>
+                <div class="weather-desc" id="current-weather-desc"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Sky Condition Now -->
+          <section id="now-score-section" class="now-score-section glass-card animate-in">
+            <div class="section-title">
+              <span class="title-icon">⏱️</span> Sky Condition Right Now
+              <span class="now-updated" id="now-updated-time"></span>
+            </div>
+            <div class="now-score-layout">
+              <!-- Gauge -->
+              <div class="now-gauge-container">
+                <div class="now-gauge">
+                  <svg viewBox="0 0 110 110" class="gauge-svg">
+                    <circle cx="55" cy="55" r="45" class="gauge-bg" />
+                    <circle cx="55" cy="55" r="45" class="now-gauge-fill gauge-fill" />
+                  </svg>
+                  <div class="now-score-value" id="now-score-value">--</div>
+                  <div class="now-score-label" id="now-score-rating">--</div>
+                </div>
+              </div>
+              <!-- Details -->
+              <div class="now-details">
+                <div class="now-metrics-row">
+                  <div class="now-metric">
+                    <span class="now-metric-icon">☁️</span>
+                    <span class="now-metric-label">Cloud Cover</span>
+                    <span class="now-metric-value" id="now-cloud-pct">--</span>
+                  </div>
+                  <div class="now-metric">
+                    <span class="now-metric-icon">💧</span>
+                    <span class="now-metric-label">Humidity</span>
+                    <span class="now-metric-value" id="now-humidity">--</span>
+                  </div>
+                  <div class="now-metric">
+                    <span class="now-metric-icon">👁️</span>
+                    <span class="now-metric-label">Visibility</span>
+                    <span class="now-metric-value" id="now-visibility">--</span>
+                  </div>
+                  <div class="now-metric">
+                    <span class="now-metric-icon">💨</span>
+                    <span class="now-metric-label">Wind</span>
+                    <span class="now-metric-value" id="now-wind">--</span>
+                  </div>
+                </div>
+                <!-- Trend Prediction -->
+                <div class="now-trend-box">
+                  <div class="now-trend-header">
+                    <span class="now-trend-icon" id="now-trend-icon">➡️</span>
+                    <span class="now-trend-label" id="now-trend-label">Analyzing...</span>
+                  </div>
+                  <div class="now-trend-confidence-bar">
+                    <div class="now-trend-confidence-fill" id="now-trend-confidence" style="width: 0%"></div>
+                  </div>
+                  <div class="now-trend-confidence-label">Trend confidence</div>
+                  <div class="now-predicted-hours" id="now-predicted-hours">
+                    <div class="now-pred-item">
+                      <span class="now-pred-label">+1h</span>
+                      <span class="now-pred-cloud">--</span>
+                    </div>
+                    <div class="now-pred-item">
+                      <span class="now-pred-label">+2h</span>
+                      <span class="now-pred-cloud">--</span>
+                    </div>
+                    <div class="now-pred-item">
+                      <span class="now-pred-label">+3h</span>
+                      <span class="now-pred-cloud">--</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="now-consensus" id="now-consensus">
+                  <div class="now-consensus-title">📊 Source comparison</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Best Night Banner -->
+          <section class="best-banner animate-in">
+            <div>
+              <div class="best-banner-label">Best Stargazing Night</div>
+              <div class="best-banner-score" id="best-night-score">--</div>
+            </div>
+            <div>
+              <div class="best-banner-date" id="best-night-date">—</div>
+              <div class="best-banner-meta">
+                <span id="best-night-rating"></span>
+                <span id="best-night-moon"></span>
+                <span id="best-night-cloud"></span>
+                <span id="best-night-time"></span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Stargazing Score Cards -->
+          <section class="score-cards-wrapper animate-in">
+            <div class="section-title"><span class="title-icon">⭐</span> 7-Night Forecast</div>
+            <div id="score-cards" class="score-cards"></div>
+          </section>
+
+          <!-- Sky Map (Stellarium / VirtualSky) -->
+          <section id="sky-section" class="sky-section animate-in">
+            <div class="section-title">
+              <span class="title-icon">🌌</span> Tonight's Sky
+              <a
+                id="stellarium-link"
+                href="https://stellarium-web.org"
+                target="_blank"
+                rel="noopener"
+                class="btn-stellarium"
+                style="margin-left: auto"
+              >
+                🔭 Open Stellarium
+              </a>
+            </div>
+            <div class="sky-map-wrapper">
+              <div id="sky-map-container"></div>
+              <div class="sky-controls">
+                <span class="sky-info">Interactive sky chart. Drag to pan.</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Nearby Best Place Finder -->
+          <section id="nearby-best-section" class="glass-card animate-in" style="margin-top: 1rem">
+            <div class="section-title" style="margin-bottom: 0.5rem">
+              <span class="title-icon">🧭</span> Clear Skies Nearby
+            </div>
+            <!-- Search Controls -->
+            <div
+              class="nearby-search-controls"
+              style="display: flex; gap: 1rem; flex-direction: column; margin-bottom: 1rem"
+            >
+              <div class="search-params" style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+                <div class="param-row" style="flex: 1; min-width: 120px">
+                  <label for="nearby-radius" style="display: block; margin-bottom: 0.3rem; font-size: 0.8rem"
+                    >Radius: <span id="nearby-radius-label">100</span> km</label
+                  >
+                  <input
+                    type="range"
+                    id="nearby-radius"
+                    min="20"
+                    max="1000"
+                    step="10"
+                    value="100"
+                    style="width: 100%"
+                  />
+                </div>
+                <div class="param-row" style="flex: 1; min-width: 120px">
+                  <label for="nearby-max-results" style="display: block; margin-bottom: 0.3rem; font-size: 0.8rem"
+                    >Max Results: <span id="nearby-max-results-label">20</span></label
+                  >
+                  <input
+                    type="range"
+                    id="nearby-max-results"
+                    min="5"
+                    max="100"
+                    step="5"
+                    value="20"
+                    style="width: 100%"
+                  />
+                </div>
+              </div>
+              <div class="param-row" style="flex: 1">
+                <label for="nearby-country" style="display: block; margin-bottom: 0.3rem; font-size: 0.8rem"
+                  >Country (Optional)</label
+                >
+                <input
+                  type="text"
+                  id="nearby-country"
+                  placeholder="e.g. US, VN, France"
+                  style="
+                    width: 100%;
+                    padding: 0.4rem 0.5rem;
+                    border-radius: 4px;
+                    background: rgba(0, 0, 0, 0.5);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    color: white;
+                    font-size: 0.85rem;
+                  "
+                />
+              </div>
+              <button
+                id="btn-find-nearby"
+                class="btn-primary"
+                type="button"
+                style="
+                  padding: 0.6rem 1.2rem;
+                  border-radius: 6px;
+                  background: var(--primary);
+                  color: white;
+                  border: none;
+                  cursor: pointer;
+                  font-weight: 600;
+                "
+              >
+                🔍 Search
+              </button>
+            </div>
+
+            <!-- Filter Controls (shown after search) -->
+            <div
+              id="nearby-filters"
+              class="hidden"
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                padding: 1rem;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 8px;
+                margin-bottom: 1rem;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+              "
+            >
+              <div style="display: flex; flex-direction: column; gap: 0.4rem">
+                <label style="font-size: 0.85rem; color: #aaa; font-weight: 500">📅 Date Range</label>
+                <div style="display: flex; gap: 0.4rem">
+                  <input
+                    type="date"
+                    id="filter-day-start"
+                    disabled
+                    style="
+                      padding: 0.4rem;
+                      border-radius: 6px;
+                      border: 1px solid rgba(255, 255, 255, 0.15);
+                      background: rgba(0, 0, 0, 0.6);
+                      color: white;
+                      outline: none;
+                      cursor: pointer;
+                      font-size: 0.8rem;
+                      color-scheme: dark;
+                      width: 100%;
+                    "
+                  />
+                  <input
+                    type="date"
+                    id="filter-day-end"
+                    disabled
+                    style="
+                      padding: 0.4rem;
+                      border-radius: 6px;
+                      border: 1px solid rgba(255, 255, 255, 0.15);
+                      background: rgba(0, 0, 0, 0.6);
+                      color: white;
+                      outline: none;
+                      cursor: pointer;
+                      font-size: 0.8rem;
+                      color-scheme: dark;
+                      width: 100%;
+                    "
+                  />
+                </div>
+                <label
+                  style="
+                    font-size: 0.75rem;
+                    color: #bbb;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.3rem;
+                    cursor: pointer;
+                  "
+                >
+                  <input type="checkbox" id="filter-day-best" checked style="cursor: pointer" /> Auto-pick best in 7
+                  days
+                </label>
+              </div>
+              <div style="display: flex; gap: 0.5rem">
+                <div style="display: flex; flex-direction: column; gap: 0.3rem; flex: 1">
+                  <label style="font-size: 0.8rem; color: #aaa; font-weight: 500">🌌 Max Bortle</label>
+                  <select
+                    id="filter-bortle"
+                    style="
+                      padding: 0.5rem;
+                      border-radius: 6px;
+                      border: 1px solid rgba(255, 255, 255, 0.15);
+                      background: rgba(0, 0, 0, 0.6);
+                      color: white;
+                      outline: none;
+                      cursor: pointer;
+                      font-size: 0.85rem;
+                    "
+                  >
+                    <option value="9">Any (1-9)</option>
+                    <option value="4" selected>≤ 4 (Dark)</option>
+                    <option value="3">≤ 3 (Excellent)</option>
+                    <option value="2">≤ 2 (Pristine)</option>
+                    <option value="5">≤ 5 (Suburban)</option>
+                    <option value="6">≤ 6 (Bright)</option>
+                  </select>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.3rem; flex: 1">
+                  <label style="font-size: 0.8rem; color: #aaa; font-weight: 500">☁️ Clouds</label>
+                  <select
+                    id="filter-clouds"
+                    style="
+                      padding: 0.5rem;
+                      border-radius: 6px;
+                      border: 1px solid rgba(255, 255, 255, 0.15);
+                      background: rgba(0, 0, 0, 0.6);
+                      color: white;
+                      outline: none;
+                      cursor: pointer;
+                      font-size: 0.85rem;
+                    "
+                  >
+                    <option value="100">Any</option>
+                    <option value="20" selected>≤ 20%</option>
+                    <option value="40">≤ 40%</option>
+                    <option value="60">≤ 60%</option>
+                    <option value="10">≤ 10%</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.3rem">
+                <label style="font-size: 0.8rem; color: #aaa; font-weight: 500">🔢 Sort By</label>
+                <select
+                  id="filter-sort"
+                  style="
+                    padding: 0.5rem;
+                    border-radius: 6px;
+                    border: 1px solid rgba(255, 255, 255, 0.15);
+                    background: rgba(0, 0, 0, 0.6);
+                    color: white;
+                    outline: none;
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                  "
+                >
+                  <option value="score">Best Score</option>
+                  <option value="clouds">Lowest Clouds</option>
+                  <option value="bortle">Darkest Sky</option>
+                  <option value="distance">Nearest</option>
+                </select>
+              </div>
+            </div>
+            <div
+              id="nearby-filter-count"
+              class="hidden"
+              style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem"
+            ></div>
+
+            <div
+              id="nearby-loading"
+              class="hidden"
+              style="margin-top: 1rem; text-align: center; color: var(--text-muted); font-size: 0.9rem"
+            >
+              ⏳ Searching...
+            </div>
+            <div id="nearby-results" class="nearby-results-grid hidden" style="margin-top: 1rem"></div>
+          </section>
+
+          <!-- Weather Charts -->
+          <section id="charts-section" class="charts-section animate-in">
+            <div class="section-title"><span class="title-icon">📊</span> Weather Charts</div>
+            <div class="chart-tabs" style="flex-wrap: wrap; gap: 0.5rem">
+              <button
+                class="chart-tab active"
+                data-chart="cloud-cover"
+                style="padding: 0.3rem 0.5rem; font-size: 0.8rem"
+              >
+                ☁️ Clouds
+              </button>
+              <button class="chart-tab" data-chart="temperature" style="padding: 0.3rem 0.5rem; font-size: 0.8rem">
+                🌡️ Temp
+              </button>
+              <button class="chart-tab" data-chart="humidity" style="padding: 0.3rem 0.5rem; font-size: 0.8rem">
+                💧 Humid
+              </button>
+              <button class="chart-tab" data-chart="visibility" style="padding: 0.3rem 0.5rem; font-size: 0.8rem">
+                👁️ Vis
+              </button>
+            </div>
+            <div id="panel-cloud-cover" class="chart-panel active">
+              <div class="chart-container"><canvas id="chart-cloud-cover"></canvas></div>
+            </div>
+            <div id="panel-temperature" class="chart-panel">
+              <div class="chart-container"><canvas id="chart-temperature"></canvas></div>
+            </div>
+            <div id="panel-humidity" class="chart-panel">
+              <div class="chart-container"><canvas id="chart-humidity"></canvas></div>
+            </div>
+            <div id="panel-visibility" class="chart-panel">
+              <div class="chart-container"><canvas id="chart-visibility"></canvas></div>
+            </div>
+          </section>
+        </div>
+        <!-- /content-sections -->
+
+        <!-- Footer -->
+        <footer style="margin-top: 2rem; border-top: 1px solid var(--border-glass); padding-top: 1rem">
+          <p style="font-size: 0.75rem; color: var(--text-muted)">🔭 StarGaze — Weather by Open-Meteo, Map by CARTO.</p>
+        </footer>
+      </aside>
+    </div>
+    <!-- /ui-layer -->
+
+    <!-- Reminder Modal -->
+    <div id="reminder-modal" class="modal-overlay">
+      <div class="modal" style="position: relative">
+        <button id="reminder-close" class="modal-close" type="button">✕</button>
+        <h3>🔔 Set Reminder</h3>
+        <div class="modal-night-info">
+          <span id="reminder-night-date"></span>
+          <span id="reminder-night-score" style="font-weight: 700"></span>
+        </div>
+        <form id="reminder-form">
+          <input type="hidden" id="reminder-score-index" />
+          <div class="form-group">
+            <label>Reminder method</label>
+            <div class="radio-group">
+              <label><input type="radio" name="reminder-method" value="email" checked /> 📧 Email</label>
+              <label><input type="radio" name="reminder-method" value="notification" /> 🔔 Browser</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="reminder-email">Email address</label>
+            <input type="email" id="reminder-email" placeholder="your@email.com" />
+          </div>
+          <button type="submit" class="btn-submit">Set Reminder</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay">
+      <div class="modal" style="position: relative">
+        <button id="close-settings" class="modal-close">&times;</button>
+        <h3>⚙️ Background Notifications</h3>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px">
+          The backend server continuously checks weather for your favorite places.
+        </p>
+        <div class="form-group">
+          <label for="settings-interval">Check Interval</label>
+          <select
+            id="settings-interval"
+            style="
+              width: 100%;
+              padding: 10px 14px;
+              background: rgba(30, 41, 59, 0.6);
+              border: 1px solid var(--border-glass);
+              border-radius: var(--radius-sm);
+              color: var(--text-primary);
+              outline: none;
+            "
+          >
+            <option value="10">10 Seconds (Testing)</option>
+            <option value="600">10 Minutes</option>
+            <option value="3600">1 Hour</option>
+            <option value="14400" selected>4 Hours (Recommended)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top: 12px">
+          <label for="settings-email">Email Address (Sender & Receiver)</label>
+          <input
+            type="email"
+            id="settings-email"
+            placeholder="your.gmail@gmail.com"
+            style="
+              width: 100%;
+              padding: 10px 14px;
+              background: rgba(30, 41, 59, 0.6);
+              border: 1px solid var(--border-glass);
+              border-radius: var(--radius-sm);
+              color: var(--text-primary);
+              outline: none;
+              margin-bottom: 8px;
+            "
+          />
+          <label for="settings-password">App Password (SMTP)</label>
+          <input
+            type="password"
+            id="settings-password"
+            placeholder="16-character app password"
+            style="
+              width: 100%;
+              padding: 10px 14px;
+              background: rgba(30, 41, 59, 0.6);
+              border: 1px solid var(--border-glass);
+              border-radius: var(--radius-sm);
+              color: var(--text-primary);
+              outline: none;
+              margin-bottom: 8px;
+            "
+          />
+          <label for="settings-owm-key">OpenWeatherMap API Key (Optional)</label>
+          <input
+            type="password"
+            id="settings-owm-key"
+            placeholder="Optional — improves live cloud cover readings"
+            style="
+              width: 100%;
+              padding: 10px 14px;
+              background: rgba(30, 41, 59, 0.6);
+              border: 1px solid var(--border-glass);
+              border-radius: var(--radius-sm);
+              color: var(--text-primary);
+              outline: none;
+              margin-bottom: 8px;
+            "
+          />
+          <label for="settings-weatherapi-key">WeatherAPI.com Key (Optional, 1M free calls/mo)</label>
+          <input
+            type="password"
+            id="settings-weatherapi-key"
+            placeholder="Free at weatherapi.com — best observation blend"
+            style="
+              width: 100%;
+              padding: 10px 14px;
+              background: rgba(30, 41, 59, 0.6);
+              border: 1px solid var(--border-glass);
+              border-radius: var(--radius-sm);
+              color: var(--text-primary);
+              outline: none;
+            "
+          />
+          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px">
+            For Gmail, generate an
+            <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--accent-cyan)"
+              >App Password</a
+            >.
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 24px">
+          <button
+            id="test-notification-btn"
+            class="btn-submit"
+            style="background: rgba(100, 116, 139, 0.2); border: 1px solid rgba(100, 116, 139, 0.3)"
+          >
+            Test Alert Now
+          </button>
+          <button id="save-settings-btn" class="btn-submit">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+      <div class="loader"></div>
+      <div class="loading-text">Loading weather data…</div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="lib/leaflet.js"></script>
+    <script src="lib/chart.js"></script>
+    <script src="lib/hammer.js"></script>
+    <script src="lib/chartjs-plugin-zoom.js"></script>
+    <script type="module" src="src/ui/app.js?v=5"></script>
+  </body>
+</html>

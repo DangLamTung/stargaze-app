@@ -1,0 +1,46 @@
+[
+  {
+    "id": 1,
+    "name": "Long Cốc",
+    "description": "Famous tea hills, extremely popular among photographers for Milky Way and sunrise shots.",
+    "admin1": "Phú Thọ",
+    "country": "Vietnam",
+    "latitude": 21.1396,
+    "longitude": 105.0211,
+    "bortle": 3,
+    "type": "milky_way_spot"
+  },
+  {
+    "id": 2,
+    "name": "Phan Rang - Tháp Chàm",
+    "description": "Dry coastal area with clear skies and incredible rock formations at Hang Rái for astrophotography.",
+    "admin1": "Ninh Thuận",
+    "country": "Vietnam",
+    "latitude": 11.5807,
+    "longitude": 108.9863,
+    "bortle": 3,
+    "type": "milky_way_spot"
+  },
+  {
+    "id": 3,
+    "name": "Gia Nghĩa",
+    "description": "High altitude, low light pollution, perfect for deep sky and Milky Way.",
+    "admin1": "Đắk Nông",
+    "country": "Vietnam",
+    "latitude": 11.9961,
+    "longitude": 107.6934,
+    "bortle": 2,
+    "type": "milky_way_spot"
+  },
+  {
+    "id": 4,
+    "name": "Mũi Dinh",
+    "description": "Lighthouse and desert-like dunes, very dark skies.",
+    "admin1": "Ninh Thuận",
+    "country": "Vietnam",
+    "latitude": 11.3683,
+    "longitude": 109.0142,
+    "bortle": 2,
+    "type": "milky_way_spot"
+  }
+]

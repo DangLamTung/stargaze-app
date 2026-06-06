@@ -3,7 +3,11 @@
  */
 
 let map = null,
-  locationMarker = null;
+  locationMarker = null,
+  bearingLine = null,
+  bearingArc = null;
+let currentBearing = 0;
+const ARC_SPREAD = 45; // degrees of FOV
 
 function createIcon(emoji, color = '#00d4ff', size = 36) {
   return L.divIcon({
@@ -105,6 +109,69 @@ export function getMap() {
 }
 export function invalidateSize() {
   if (map) setTimeout(() => map.invalidateSize(), 100);
+}
+
+// ─── Viewing direction indicator on map ───
+
+function destPoint(lat, lon, bearingDeg, distKm) {
+  const R = 6371;
+  const d = distKm / R;
+  const brng = (bearingDeg * Math.PI) / 180;
+  const φ1 = (lat * Math.PI) / 180;
+  const λ1 = (lon * Math.PI) / 180;
+  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(d) + Math.cos(φ1) * Math.sin(d) * Math.cos(brng));
+  const λ2 = λ1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(φ1), Math.cos(d) - Math.sin(φ1) * Math.sin(φ2));
+  return [(φ2 * 180) / Math.PI, (λ2 * 180) / Math.PI];
+}
+
+export function updateViewingBearing(lat, lon, bearing) {
+  if (!map || lat == null || lon == null) return;
+
+  if (bearingLine) map.removeLayer(bearingLine);
+  if (bearingArc) map.removeLayer(bearingArc);
+
+  currentBearing = ((bearing % 360) + 360) % 360;
+
+  const dist = Math.max(3, 15 - (map.getZoom() - 8) * 1.5);
+
+  // Dashed line from marker in the viewing direction
+  const tip = destPoint(lat, lon, bearing, dist);
+  bearingLine = L.polyline([[lat, lon], tip], {
+    color: '#00d4ff',
+    weight: 1.5,
+    dashArray: '6, 8',
+    opacity: 0.5,
+    interactive: false,
+  }).addTo(map);
+
+  // Thin arc showing FOV spread
+  const arcPoints = [[lat, lon]];
+  const steps = 10;
+  for (let i = -ARC_SPREAD / 2; i <= ARC_SPREAD / 2; i += ARC_SPREAD / steps) {
+    arcPoints.push(destPoint(lat, lon, bearing + i, dist * 0.7));
+  }
+  arcPoints.push([lat, lon]);
+  bearingArc = L.polygon(arcPoints, {
+    color: '#00d4ff',
+    weight: 0.5,
+    fillColor: '#00d4ff',
+    fillOpacity: 0.06,
+    interactive: false,
+  }).addTo(map);
+}
+
+export function getViewingBearing() {
+  return currentBearing;
+}
+
+/** Compute bearing from (lat1,lon1) to (lat2,lon2) in degrees */
+export function computeBearing(lat1, lon1, lat2, lon2) {
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 let lpLayer = null;

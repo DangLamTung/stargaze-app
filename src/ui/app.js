@@ -25,6 +25,8 @@ import {
   getMap,
   setLightPollutionLayer,
   renderNearbyMarkers,
+  computeBearing,
+  updateViewingBearing,
 } from './map-service.js';
 import { createAllCharts } from './chart-service.js';
 import { initSkyMap, updateSkyMap, getStellariumUrl, setSkyContext } from './sky-map.js';
@@ -91,6 +93,17 @@ function debounce(fn, ms) {
     clearTimeout(t);
     t = setTimeout(() => fn(...a), ms);
   };
+}
+
+// Sync map bearing to Stellarium
+function updateStellariumBearing(bearing) {
+  import('./sky-map.js').then(m => m.setSkyBearing(bearing));
+  const link = document.getElementById('stellarium-link');
+  if (link && state.location) {
+    import('./sky-map.js').then(m => {
+      link.href = m.getStellariumUrl(state.location.latitude, state.location.longitude, bearing);
+    });
+  }
 }
 
 // ─── Favorites ───
@@ -266,11 +279,18 @@ function init() {
   const map = getMap();
   map.on('click', async e => {
     if (state.loading) return;
+
+    // Always update viewing direction toward where user clicked
+    if (state.location) {
+      const bearing = computeBearing(state.location.latitude, state.location.longitude, e.latlng.lat, e.latlng.lng);
+      updateViewingBearing(state.location.latitude, state.location.longitude, bearing);
+      updateStellariumBearing(bearing);
+    }
+
+    // Relocate to clicked point
     setLoading(true);
     try {
-      console.log('🗺️ Map clicked at', e.latlng);
       const locInfo = await reverseGeocode(e.latlng.lat, e.latlng.lng);
-      console.log('📍 Reverse geocoded:', locInfo);
       await selectLocation({
         latitude: e.latlng.lat,
         longitude: e.latlng.lng,
@@ -540,6 +560,7 @@ async function selectLocation(location) {
     renderCharts();
 
     updateMapView();
+    updateViewingBearing(location.latitude, location.longitude, 0);
     initSkyMapView();
 
     // Start continuous now-score refresh

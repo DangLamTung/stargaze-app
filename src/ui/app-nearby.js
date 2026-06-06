@@ -7,6 +7,7 @@ import { estimateBortleClass } from '../core/bortle-service.js';
 import { showToast } from './toast.js';
 import { getMap, setLightPollutionLayer, renderNearbyMarkers } from './map-service.js';
 import { setWeatherLayer, startCloudAnimation, stopCloudAnimation, setCloudOpacity } from './cloud-layer.js';
+import { getScoreGradient } from '../core/stargazing-score.js';
 
 export async function handleFindNearby(state, $, applyFiltersFn) {
   const loc = state.location;
@@ -172,9 +173,6 @@ export function applyNearbyFilters() {
   resultsEl.classList.remove('hidden');
 }
 
-// Import getScoreGradient dynamically to avoid circular dependency
-import { getScoreGradient } from '../core/stargazing-score.js';
-
 window.selectNearbySpot = function (index) {
   const spot = window._nearbySpots[index];
   if (!spot) return;
@@ -187,7 +185,6 @@ window.selectNearbySpot = function (index) {
     timezone: 'auto',
   };
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  // selectLocation is defined in app.js and exposed globally
   if (window._selectLocation) window._selectLocation(loc);
 };
 

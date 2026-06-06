@@ -436,6 +436,9 @@ function init() {
     console.error('Failed to load default location:', err);
     showToast(`Failed to load default location: ${err.message}`, 'error');
   });
+
+  // Expose for nearby-spot clicks
+  window._selectLocation = selectLocation;
 }
 
 // ─── Search ───

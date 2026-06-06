@@ -5,9 +5,11 @@
 let map = null,
   locationMarker = null,
   bearingLine = null,
-  bearingArc = null;
+  bearingArc = null,
+  bearingGlow = null,
+  bortleLabel = null;
 let currentBearing = 0;
-const ARC_SPREAD = 45; // degrees of FOV
+const ARC_SPREAD = 60; // degrees of FOV — wider for industrial look
 
 function createIcon(emoji, color = '#00d4ff', size = 36) {
   return L.divIcon({
@@ -129,35 +131,74 @@ export function updateViewingBearing(lat, lon, bearing) {
 
   if (bearingLine) map.removeLayer(bearingLine);
   if (bearingArc) map.removeLayer(bearingArc);
+  if (bearingGlow) map.removeLayer(bearingGlow);
+  if (bortleLabel) map.removeLayer(bortleLabel);
 
   currentBearing = ((bearing % 360) + 360) % 360;
 
-  const dist = Math.max(3, 15 - (map.getZoom() - 8) * 1.5);
+  // Larger distance for industrial radar look
+  const dist = Math.max(8, 30 - (map.getZoom() - 8) * 2.5);
 
-  // Dashed line from marker in the viewing direction
-  const tip = destPoint(lat, lon, bearing, dist);
-  bearingLine = L.polyline([[lat, lon], tip], {
-    color: '#00d4ff',
-    weight: 1.5,
-    dashArray: '6, 8',
-    opacity: 0.5,
+  // Glow layer — wide, translucent
+  const glowTip = destPoint(lat, lon, bearing, dist * 1.05);
+  bearingGlow = L.polyline([[lat, lon], glowTip], {
+    color: '#00ff88',
+    weight: 8,
+    opacity: 0.12,
     interactive: false,
   }).addTo(map);
 
-  // Thin arc showing FOV spread
+  // Main dashed line — bright neon green
+  const tip = destPoint(lat, lon, bearing, dist);
+  bearingLine = L.polyline([[lat, lon], tip], {
+    color: '#00ff88',
+    weight: 3,
+    dashArray: '10, 6',
+    opacity: 0.7,
+    interactive: false,
+  }).addTo(map);
+
+  // Wide filled arc for FOV
   const arcPoints = [[lat, lon]];
-  const steps = 10;
+  const steps = 16;
   for (let i = -ARC_SPREAD / 2; i <= ARC_SPREAD / 2; i += ARC_SPREAD / steps) {
-    arcPoints.push(destPoint(lat, lon, bearing + i, dist * 0.7));
+    arcPoints.push(destPoint(lat, lon, bearing + i, dist * 0.75));
   }
   arcPoints.push([lat, lon]);
   bearingArc = L.polygon(arcPoints, {
-    color: '#00d4ff',
-    weight: 0.5,
-    fillColor: '#00d4ff',
-    fillOpacity: 0.06,
+    color: '#00ff88',
+    weight: 1.5,
+    fillColor: '#00ff88',
+    fillOpacity: 0.08,
     interactive: false,
   }).addTo(map);
+
+  // Bortle label at the tip
+  bortleLabel = L.marker(tip, {
+    icon: L.divIcon({
+      className: 'bearing-bortle-label',
+      html: '<div style="background:rgba(0,0,0,0.85);color:#00ff88;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;border:1px solid #00ff8844;white-space:nowrap;">⏳</div>',
+      iconSize: [40, 18],
+      iconAnchor: [20, 9],
+    }),
+    interactive: false,
+  }).addTo(map);
+
+  // Fire Bortle query along the bearing
+  const samplePoint = destPoint(lat, lon, bearing, Math.min(dist * 0.8, 20));
+  fetch(`/api/bortle?lat=${samplePoint[0].toFixed(4)}&lon=${samplePoint[1].toFixed(4)}`)
+    .then(r => r.json())
+    .then(d => {
+      const b = d.bortle || '?';
+      const color = b <= 3 ? '#00ff88' : b <= 5 ? '#ffcc00' : '#ff4444';
+      bortleLabel.setIcon(L.divIcon({
+        className: 'bearing-bortle-label',
+        html: `<div style="background:rgba(0,0,0,0.9);color:${color};padding:3px 8px;border-radius:4px;font-family:monospace;font-size:11px;border:1px solid ${color}44;white-space:nowrap;">🌌 B${b} ${Math.round(bearing)}°</div>`,
+        iconSize: [70, 20],
+        iconAnchor: [35, 10],
+      }));
+    })
+    .catch(() => {});
 }
 
 export function getViewingBearing() {

@@ -277,17 +277,10 @@ function init() {
     .catch(err => console.error('Failed to load curated spots', err));
 
   const map = getMap();
+
+  // Left-click: relocate
   map.on('click', async e => {
     if (state.loading) return;
-
-    // Always update viewing direction toward where user clicked
-    if (state.location) {
-      const bearing = computeBearing(state.location.latitude, state.location.longitude, e.latlng.lat, e.latlng.lng);
-      updateViewingBearing(state.location.latitude, state.location.longitude, bearing);
-      updateStellariumBearing(bearing);
-    }
-
-    // Relocate to clicked point
     setLoading(true);
     try {
       const locInfo = await reverseGeocode(e.latlng.lat, e.latlng.lng);
@@ -303,6 +296,14 @@ function init() {
     } finally {
       setLoading(false);
     }
+  });
+
+  // Right-click: rotate viewing direction without relocating
+  map.on('contextmenu', e => {
+    if (state.loading || !state.location) return;
+    const bearing = computeBearing(state.location.latitude, state.location.longitude, e.latlng.lat, e.latlng.lng);
+    updateViewingBearing(state.location.latitude, state.location.longitude, bearing);
+    updateStellariumBearing(bearing);
   });
 
   $('search-input').addEventListener('input', debounce(handleSearch, 300));

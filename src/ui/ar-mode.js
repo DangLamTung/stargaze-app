@@ -79,11 +79,12 @@ function handleEvent(event) {
   if (raw == null || isNaN(raw)) raw = 0;
   raw = (raw + 180) % 360; // remap: North=180
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch: in landscape gamma is front/back tilt, in portrait beta is
+  // Pitch: in landscape alpha gives elevation, in portrait beta is
   var pitchAngle;
   if (isLandscape) {
-    // gamma: 0=vertical/facing-horizon, 90=flat/facing-sky
-    pitchAngle = Math.abs(event.gamma || 0);
+    // alpha: use as elevation directly, clamp to 0-90
+    pitchAngle = Math.abs((event.alpha || 0) % 180);
+    if (pitchAngle > 90) pitchAngle = 180 - pitchAngle;
   } else {
     // beta: 0=flat, 90=vertical → 90-beta = 90=flat/zenith, 0=vertical/horizon
     pitchAngle = 90 - Math.abs(event.beta || 0);
@@ -146,22 +147,18 @@ export async function startARMode(latitude, longitude, onStop) {
           stel.core.milkyway.addDataSource({ url: base + 'surveys/milkyway' });
           stel.core.planets.addDataSource({ url: base + 'surveys/sso/sun', key: 'sun' });
           stel.core.planets.addDataSource({ url: base + 'surveys/sso/moon', key: 'moon' });
+          if (stel.core.landscapes) stel.core.landscapes.addDataSource({ url: base + 'landscapes/guereins', key: 'guereins' });
           // Show constellation lines & art
           if (stel.core.constellations) {
             stel.core.constellations.lines_visible = true;
             stel.core.constellations.labels_visible = true;
           }
           if (stel.core.atmosphere) stel.core.atmosphere.visible = false;
-          if (stel.core.landscapes) stel.core.landscapes.visible = false;
+          if (stel.core.landscapes) stel.core.landscapes.visible = true;
           // Time: set to now (MJD)
           if (stel.core.observer && typeof stel.date2MJD === 'function') {
             baseMJD = stel.date2MJD(new Date());
             stel.core.observer.utc = baseMJD;
-          }
-          // Grid lines
-          if (stel.core.lines) {
-            if (stel.core.lines.equatorial) stel.core.lines.equatorial.visible = true;
-            if (stel.core.lines.azimuthal) stel.core.lines.azimuthal.visible = true;
           }
           // Labels
           if (stel.core.stars) stel.core.stars.hints_visible = true;
@@ -244,7 +241,7 @@ function renderLoop() {
   if (!arActive) return;
   var h = ((smoothHeading % 360) + 360) % 360;
   if (engineReady && stel && stel.core && stel.core.observer) {
-    stel.core.observer.yaw = h * Math.PI / 180;
+    stel.core.observer.yaw = ((360 - h) % 360) * Math.PI / 180;
     stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
     // Apply time offset
     if (baseMJD && typeof stel.date2MJD === 'function') {

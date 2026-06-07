@@ -127,10 +127,14 @@ export function renderFavoritesList() {
   container.innerHTML = favs
     .map(f => {
       const bg = f.image ? `<img src="${f.image}" alt="${f.name}">` : `<div class="favorite-card-fallback"></div>`;
+      const score = window._favScores?.[f.name];
+      const scoreBadge = score
+        ? `<span style="font-size:0.65rem;color:${score.score >= 80 ? '#00e676' : score.score >= 60 ? '#76ff03' : '#ffea00'};margin-left:4px;">${score.score}</span>`
+        : '';
       return `
       <div class="favorite-card" data-lat="${f.latitude}" data-lon="${f.longitude}" data-name="${f.name}" data-country="${f.country || ''}">
         ${bg}
-        <div class="favorite-card-overlay" title="${f.name}">${f.name}</div>
+        <div class="favorite-card-overlay" title="${f.name}">${f.name}${scoreBadge}</div>
       </div>
     `;
     })
@@ -451,7 +455,11 @@ function init() {
   window.addEventListener('beforeunload', () => {
     stopNowRefresh();
     stopForecastWatch();
+    stopFavoritesWatch();
   });
+
+  // Start favorites watcher
+  startFavoritesWatch();
 
   // Load Ho Chi Minh City by default
   const defaultLoc = {
@@ -676,7 +684,50 @@ async function checkAndNotifyForecast() {
     tag: `stargaze-${best.date}`,
   });
 }
+// ─── Favorites watcher — check all favorited locations in background ───
+let favWatchTimer = null;
+const FAV_CHECK_MS = 45 * 60 * 1000; // every 45 minutes
+window._favScores = {}; // { name: { score, rating, date } }
 
+function startFavoritesWatch() {
+  stopFavoritesWatch();
+  checkAllFavorites(); // run immediately
+  favWatchTimer = setInterval(checkAllFavorites, FAV_CHECK_MS);
+}
+
+function stopFavoritesWatch() {
+  if (favWatchTimer) { clearInterval(favWatchTimer); favWatchTimer = null; }
+}
+
+async function checkAllFavorites() {
+  const favs = getFavorites();
+  if (!favs.length) return;
+
+  for (const fav of favs) {
+    try {
+      const wd = await getWeatherData(fav.latitude, fav.longitude, 'auto');
+      const bortle = await estimateBortleClass(fav.latitude, fav.longitude);
+      const scores = calculateAllScores(wd, bortle, wd.current?.cloudCover ?? null);
+      const best = findBestNight(scores);
+      if (best) {
+        window._favScores[fav.name] = {
+          score: best.score, rating: best.rating, date: best.date,
+          cloud: best.avgCloudCover, moon: best.moonPhaseIcon,
+        };
+        // Notify if excellent (score >= 80)
+        if (best.score >= 80 && Notification.permission === 'granted') {
+          const d = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+          new Notification(`🌟 ${fav.name}: ${best.rating} stargazing!`, {
+            body: `Score ${best.score}/100 — ${d}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
+            icon: '🔭', tag: `fav-${fav.name}-${best.date}`,
+          });
+        }
+      }
+    } catch (e) { console.warn(`Fav check failed for ${fav.name}:`, e); }
+  }
+
+  renderFavoritesList();
+}
 // ─── Nearby wrappers ───
 function handleFindNearby() {
   return _handleFindNearby(state, $, applyNearbyFilters);

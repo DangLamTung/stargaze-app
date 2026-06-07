@@ -117,6 +117,16 @@ export async function startARMode(latitude, longitude, onStop) {
           stel.core.stars.addDataSource({ url: base + 'stars' });
           stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
           stel.core.dsos.addDataSource({ url: base + 'dso' });
+          stel.core.milkyway.addDataSource({ url: base + 'surveys/milkyway' });
+          stel.core.planets.addDataSource({ url: base + 'surveys/sso/sun', key: 'sun' });
+          stel.core.planets.addDataSource({ url: base + 'surveys/sso/moon', key: 'moon' });
+          // Show constellation lines & art
+          if (stel.core.constellations) {
+            stel.core.constellations.lines_visible = true;
+            stel.core.constellations.labels_visible = true;
+          }
+          if (stel.core.atmosphere) stel.core.atmosphere.visible = false;
+          if (stel.core.landscapes) stel.core.landscapes.visible = false;
           stel.core.observer.latitude = latitude;
           stel.core.observer.longitude = longitude;
           stel.core.observer.pitch = 45 * Math.PI / 180;

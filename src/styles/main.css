@@ -155,8 +155,8 @@ body {
   box-shadow: var(--shadow-card);
   overflow: hidden;
   display: none;
-  z-index: 200;
-  max-height: 320px;
+  z-index: 2000;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -1906,6 +1906,20 @@ footer a:hover {
     height: 32px;
   }
 
+  .favorites-list {
+    margin-top: 4px;
+    gap: 4px;
+  }
+  .favorite-card {
+    height: 30px;
+    padding: 2px 8px 2px 2px;
+    border-radius: 15px;
+  }
+  .favorite-card-overlay {
+    font-size: 0.7rem;
+    max-width: 100px;
+  }
+
   .header-actions {
     gap: 2px;
   }
@@ -1965,12 +1979,15 @@ footer a:hover {
       padding: 3px 6px;
       gap: 2px;
     }
-    .logo { font-size: 0.8rem; }
+    .logo { font-size: 0.75rem; letter-spacing: -0.5px; }
     .icon-btn { width: 24px; height: 24px; font-size: 0.7rem; }
-    .action-btn { padding: 4px 8px; font-size: 0.7rem; }
+    .action-btn { padding: 4px 6px; font-size: 0.65rem; }
     .search-container { margin-top: 2px; }
-    .search-container input { padding: 4px 6px 4px 28px; font-size: 0.75rem; height: 28px; }
-    .search-container::before { left: 10px; font-size: 0.7rem; }
+    .search-container input { padding: 4px 6px 4px 26px; font-size: 0.72rem; height: 28px; }
+    .search-container::before { left: 8px; font-size: 0.65rem; top: 48%; }
+    .favorites-list { margin-top: 4px; gap: 4px; }
+    .favorite-card { height: 28px; padding: 2px 8px 2px 2px; border-radius: 14px; }
+    .favorite-card-overlay { font-size: 0.68rem; max-width: 80px; }
     .floating-controls { top: 90px; max-width: 170px; }
     .leaflet-top.leaflet-left { top: 90px; }
   }

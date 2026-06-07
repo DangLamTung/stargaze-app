@@ -120,21 +120,29 @@ function handleOrientation(event) {
   const isAbsolute = event.type === 'deviceorientationabsolute';
   let rawHeading;
 
+  // 1. iOS: webkitCompassHeading is true north
   if (event.webkitCompassHeading !== undefined) {
     rawHeading = event.webkitCompassHeading;
     hasAbsoluteHeading = true;
-  } else if (isAbsolute) {
+  }
+  // 2. Android: deviceorientationabsolute.alpha = true north
+  else if (isAbsolute && event.alpha != null) {
     rawHeading = event.alpha;
     hasAbsoluteHeading = true;
-  } else if (!hasAbsoluteHeading) {
+  }
+  // 3. Fallback: regular alpha is relative to screen, compensate with screen angle
+  else if (!hasAbsoluteHeading && event.alpha != null) {
     rawHeading = event.alpha;
+    const screenAngle = (screen.orientation && screen.orientation.angle != null)
+      ? screen.orientation.angle : (window.orientation || 0);
+    rawHeading = (rawHeading - screenAngle + 360) % 360;
   } else {
-    return; // ignore non-absolute once we have absolute
+    return;
   }
 
   if (rawHeading == null || isNaN(rawHeading)) rawHeading = 0;
 
-  // Low-pass filter: exponential smoothing
+  // Low-pass filter
   const beta = event.beta || 0;
   const rawAlt = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
   smoothHeading = smoothHeading + LP * angleDelta(rawHeading, smoothHeading);
@@ -149,11 +157,12 @@ function handleOrientation(event) {
 
   const debugEl = document.getElementById('ar-debug');
   if (debugEl) {
+    const scrAngle = (screen.orientation && screen.orientation.angle != null)
+      ? screen.orientation.angle : (window.orientation || 0);
     debugEl.textContent =
-      `${isAbsolute ? 'ABS' : 'REL'} ` +
-      `α(yaw):${(event.alpha||0).toFixed(1)}→hdg:${orientation.heading.toFixed(1)}° ` +
-      `β(pitch):${beta.toFixed(1)}° γ(roll):${(event.gamma||0).toFixed(1)}° ` +
-      `alt:${orientation.altitude.toFixed(1)}°`;
+      `${isAbsolute ? 'ABS' : 'rel'} scr:${scrAngle}° ` +
+      `α:${(event.alpha||0).toFixed(1)}→hdg:${orientation.heading.toFixed(1)}° ` +
+      `β:${beta.toFixed(1)}° γ:${(event.gamma||0).toFixed(1)}°`;
   }
 }
 

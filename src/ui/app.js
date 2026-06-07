@@ -557,11 +557,17 @@ function init() {
   // Expose for nearby-spot clicks
   window._selectLocation = selectLocation;
 
-  // On mobile, collapse the info panel by default (map-first layout)
+  // On mobile, collapse the info panel and controls by default (map-first layout)
   if (window.innerWidth <= 900) {
     $('info-panel')?.classList.add('collapsed');
     $('panel-toggle-btn')?.classList.add('collapsed');
+    $('map-layers-control')?.classList.add('collapsed');
   }
+
+  // Map controls toggle button
+  $('controls-toggle-btn')?.addEventListener('click', () => {
+    $('map-layers-control')?.classList.toggle('collapsed');
+  });
 }
 
 // ─── Search ───

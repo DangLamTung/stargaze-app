@@ -1762,6 +1762,23 @@ footer a:hover {
   overflow-y: auto;
 }
 
+.controls-toggle-btn {
+  display: none; /* Hidden on desktop */
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border-glass);
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+}
+
 /* ─── Floating Panel (Left) ─── */
 .floating-panel {
   position: absolute;
@@ -1938,7 +1955,7 @@ footer a:hover {
     margin-left: 8px;
   }
 
-  /* Right-side: stack controls + curated spots vertically */
+  /* Right-side: compact with toggle */
   .floating-controls {
     top: 100px;
     right: 6px;
@@ -1946,9 +1963,30 @@ footer a:hover {
     max-width: 200px;
     padding: 8px;
     font-size: 0.75rem;
-    max-height: none; /* let content determine height */
+    max-height: none;
     overflow-y: visible;
     border-radius: var(--radius-md);
+    transition: max-width 0.25s ease, padding 0.25s ease;
+  }
+
+  .controls-toggle-btn {
+    display: block;
+  }
+
+  /* Collapsed: just the gear button */
+  .floating-controls.collapsed {
+    max-width: 40px;
+    padding: 6px;
+    overflow: hidden;
+  }
+
+  .floating-controls.collapsed .controls-inner {
+    display: none;
+  }
+
+  .floating-controls.collapsed .controls-toggle-btn {
+    position: static;
+    margin: 0 auto;
   }
 
   .floating-controls label {

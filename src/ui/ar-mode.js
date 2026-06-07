@@ -39,6 +39,11 @@ export function preloadStellarium(lat, lon) {
     onReady: function(engine) {
       stel = engine;
       engineReady = true;
+      // Load star catalogs (required — engine shows black without them)
+      var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
+      stel.core.stars.addDataSource({ url: base + 'stars' });
+      stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
+      stel.core.dsos.addDataSource({ url: base + 'dso' });
       stel.core.observer.latitude = initLat;
       stel.core.observer.longitude = initLon;
       stel.core.observer.pitch = 45 * Math.PI / 180;
@@ -126,6 +131,13 @@ export async function startARMode(latitude, longitude, onStop) {
       stel.core.observer.longitude = longitude;
       stel.core.observer.pitch = 45 * Math.PI / 180;
       stel.core.observer.yaw = 0;
+      if (!stel._dataSourcesLoaded) {
+        stel._dataSourcesLoaded = true;
+        var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
+        stel.core.stars.addDataSource({ url: base + 'stars' });
+        stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
+        stel.core.dsos.addDataSource({ url: base + 'dso' });
+      }
     } else if (typeof StelWebEngine !== 'undefined') {
       StelWebEngine({
         wasmFile: 'lib/stellarium-web-engine.wasm',
@@ -133,6 +145,10 @@ export async function startARMode(latitude, longitude, onStop) {
         onReady: function(engine) {
           stel = engine;
           engineReady = true;
+          var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
+          stel.core.stars.addDataSource({ url: base + 'stars' });
+          stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
+          stel.core.dsos.addDataSource({ url: base + 'dso' });
           stel.core.observer.latitude = latitude;
           stel.core.observer.longitude = longitude;
           stel.core.observer.pitch = 45 * Math.PI / 180;

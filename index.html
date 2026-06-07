@@ -891,6 +891,19 @@
             <span>📐</span><span id="ar-altitude">45°</span>
           </div>
         </div>
+        <!-- Sliders: opacity & time -->
+        <div class="ar-sliders" id="ar-sliders">
+          <div class="ar-slider-row">
+            <span class="ar-slider-label">🌫️ Opacity</span>
+            <input type="range" id="ar-opacity" min="20" max="100" value="92" class="ar-slider" />
+            <span class="ar-slider-val" id="ar-opacity-val">92%</span>
+          </div>
+          <div class="ar-slider-row">
+            <span class="ar-slider-label">🕐 Time</span>
+            <input type="range" id="ar-time" min="-720" max="720" value="0" step="15" class="ar-slider" />
+            <span class="ar-slider-val" id="ar-time-val">now</span>
+          </div>
+        </div>
         <!-- Close button -->
         <button class="ar-close-btn" id="ar-close-btn">✕</button>
         <!-- Hint -->

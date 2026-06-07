@@ -16,6 +16,9 @@ let sensor = null;
 let sensorReady = false;
 let engineReady = false;
 let initLat = 0, initLon = 0;
+let skyOpacity = 0.92;
+let timeOffsetMinutes = 0;
+let baseMJD = 0;
 
 export function isARActive() { return arActive; }
 
@@ -152,7 +155,8 @@ export async function startARMode(latitude, longitude, onStop) {
           if (stel.core.landscapes) stel.core.landscapes.visible = false;
           // Time: set to now (MJD)
           if (stel.core.observer && typeof stel.date2MJD === 'function') {
-            stel.core.observer.utc = stel.date2MJD(new Date());
+            baseMJD = stel.date2MJD(new Date());
+            stel.core.observer.utc = baseMJD;
           }
           // Grid lines
           if (stel.core.lines) {
@@ -167,6 +171,7 @@ export async function startARMode(latitude, longitude, onStop) {
           stel.core.observer.pitch = 45 * Math.PI / 180;
           stel.core.observer.yaw = 0;
           console.log('[AR] Catalogs & observer set');
+          setupSliders();
         }
       });
     } else if (engineReady && stel) {
@@ -175,9 +180,10 @@ export async function startARMode(latitude, longitude, onStop) {
       stel.core.observer.longitude = longitude;
       stel.core.observer.pitch = 45 * Math.PI / 180;
       stel.core.observer.yaw = 0;
-      if (typeof stel.date2MJD === 'function') stel.core.observer.utc = stel.date2MJD(new Date());
+      if (typeof stel.date2MJD === 'function') { baseMJD = stel.date2MJD(new Date()); stel.core.observer.utc = baseMJD; }
     }
     startSensor();
+    setupSliders();
     renderLoop();
   } catch (err) {
     console.error('AR failed:', err);
@@ -195,7 +201,43 @@ export function stopARMode() {
   if (overlayEl) overlayEl.classList.add('hidden');
   overlayEl = null;
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  skyOpacity = 0.92;
+  timeOffsetMinutes = 0;
   stopSensor();
+}
+
+function setupSliders() {
+  var opSlider = document.getElementById('ar-opacity');
+  var opVal = document.getElementById('ar-opacity-val');
+  if (opSlider && opVal) {
+    opSlider.value = Math.round(skyOpacity * 100);
+    opVal.textContent = Math.round(skyOpacity * 100) + '%';
+    opSlider.addEventListener('input', function() {
+      skyOpacity = parseInt(this.value) / 100;
+      opVal.textContent = this.value + '%';
+      if (canvasEl) canvasEl.style.opacity = skyOpacity;
+    });
+  }
+  var tmSlider = document.getElementById('ar-time');
+  var tmVal = document.getElementById('ar-time-val');
+  if (tmSlider && tmVal) {
+    tmSlider.value = timeOffsetMinutes;
+    tmVal.textContent = formatTimeOffset(timeOffsetMinutes);
+    tmSlider.addEventListener('input', function() {
+      timeOffsetMinutes = parseInt(this.value);
+      tmVal.textContent = formatTimeOffset(timeOffsetMinutes);
+    });
+  }
+}
+
+function formatTimeOffset(minutes) {
+  if (minutes === 0) return 'now';
+  var sign = minutes > 0 ? '+' : '';
+  var h = Math.floor(Math.abs(minutes) / 60);
+  var m = Math.abs(minutes) % 60;
+  if (h === 0) return sign + m + 'm';
+  if (m === 0) return sign + h + 'h';
+  return sign + h + 'h' + m + 'm';
 }
 
 function renderLoop() {
@@ -204,7 +246,13 @@ function renderLoop() {
   if (engineReady && stel && stel.core && stel.core.observer) {
     stel.core.observer.yaw = h * Math.PI / 180;
     stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
+    // Apply time offset
+    if (baseMJD && typeof stel.date2MJD === 'function') {
+      stel.core.observer.utc = baseMJD + timeOffsetMinutes / (24 * 60);
+    }
   }
+  // Apply opacity
+  if (canvasEl) canvasEl.style.opacity = skyOpacity;
   var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
   if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
   var hl = overlayEl && overlayEl.querySelector('#ar-heading');

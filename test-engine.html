@@ -27,74 +27,57 @@
   <script src="lib/stellarium-web-engine.js"></script>
   <script>
     var statusEl = document.getElementById('status');
-    function log(msg) { statusEl.textContent = msg; console.log(msg); }
+    function log(msg) { console.log('[TEST]', msg); statusEl.textContent = msg; }
 
     log('StelWebEngine type: ' + typeof StelWebEngine);
 
     if (typeof StelWebEngine === 'undefined') {
-      log('ERROR: StelWebEngine not defined - check script src');
+      log('ERROR: StelWebEngine not defined - check script src path');
     } else {
-      log('Calling StelWebEngine...');
+      log('Calling StelWebEngine (this can only be called ONCE)...');
       try {
         StelWebEngine({
           wasmFile: 'lib/stellarium-web-engine.wasm',
           canvas: document.getElementById('sky'),
           onReady: function(engine) {
-            log('ENGINE READY!');
+            log('ENGINE READY! Loading star catalogs...');
             window._stel = engine;
 
-            // Check what's available
-            var keys = Object.keys(engine);
-            log('Top keys: ' + keys.join(', '));
+            if (!engine.core) { log('ERROR: no core'); return; }
+            if (!engine.core.observer) { log('ERROR: no observer'); return; }
 
-            if (engine.core) {
-              log('core found');
-              var ck = Object.keys(engine.core);
-              log('core keys: ' + ck.join(', '));
+            // Load catalogs
+            var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
+            engine.core.stars.addDataSource({ url: base + 'stars' });
+            engine.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
+            engine.core.dsos.addDataSource({ url: base + 'dso' });
 
-              if (engine.core.observer) {
-                log('observer found');
+            // Set observer
+            engine.core.observer.latitude = 10.762622;
+            engine.core.observer.longitude = 106.660172;
+            engine.core.observer.pitch = 45 * Math.PI / 180;
+            engine.core.observer.yaw = 0;
 
-                // ---- LOAD STAR CATALOGS (required — engine shows black without them) ----
-                var baseUrl = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
-                engine.core.stars.addDataSource({ url: baseUrl + 'stars' });
-                engine.core.skycultures.addDataSource({ url: baseUrl + 'skycultures/western', key: 'western' });
-                engine.core.dsos.addDataSource({ url: baseUrl + 'dso' });
-                log('Data sources loaded: stars, dsos, skyculture');
-
-                // Set position
-                engine.core.observer.latitude = 10.762622;
-                engine.core.observer.longitude = 106.660172;
-                log('Position set to HCMC (10.76, 106.66)');
-
-                // Set yaw (azimuth) and pitch (altitude)
-                engine.core.observer.yaw = 0;
-                engine.core.observer.pitch = 45 * Math.PI / 180;
-                log('yaw=0deg, pitch=45deg');
-              } else {
-                log('ERROR: no core.observer');
-              }
-            } else {
-              log('ERROR: no core object');
-            }
+            log('READY! Stars should appear. Use buttons below to rotate.');
           },
           onError: function(err) {
-            log('ENGINE ERROR: ' + (err && err.message ? err.message : err));
+            log('ENGINE ERROR: ' + (err && err.message ? err.message : String(err)));
           }
         });
       } catch(e) {
-        log('EXCEPTION: ' + e.message);
+        log('EXCEPTION: ' + e.message + ' (stack: ' + e.stack + ')');
       }
     }
 
     function setAz(deg) {
       document.getElementById('az-slider').value = deg;
-      document.getElementById('az-label').textContent = deg + '°';
-      if (window._stel && window._stel.core && window._stel.core.observer) {
-        window._stel.core.observer.yaw = deg * Math.PI / 180;
-        log('yaw set to ' + deg + '°');
+      document.getElementById('az-label').textContent = deg + '\u00b0';
+      var s = window._stel;
+      if (s && s.core && s.core.observer) {
+        s.core.observer.yaw = deg * Math.PI / 180;
+        log('yaw -> ' + deg + '\u00b0');
       } else {
-        log('Engine not ready yet');
+        log('Engine not ready yet (wait for star catalogs to load)');
       }
     }
   </script>

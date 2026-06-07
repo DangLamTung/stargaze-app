@@ -25,7 +25,15 @@ export function preloadStellarium(lat, lon) {
     stel.core.observer.longitude = lon;
     return;
   }
-  if (typeof StelWebEngine === 'undefined') return;
+  if (typeof StelWebEngine === 'undefined') {
+    console.log('[AR] StelWebEngine not loaded yet, waiting for script');
+    return;
+  }
+  // Only init ONCE
+  if (window._stelEngineInit) return;
+  window._stelEngineInit = true;
+  console.log('[AR] Initializing Stellarium engine...');
+
   var c = document.getElementById('ar-preload-canvas');
   if (!c) {
     c = document.createElement('canvas');
@@ -37,9 +45,9 @@ export function preloadStellarium(lat, lon) {
     wasmFile: 'lib/stellarium-web-engine.wasm',
     canvas: c,
     onReady: function(engine) {
+      console.log('[AR] Engine READY');
       stel = engine;
       engineReady = true;
-      // Load star catalogs (required — engine shows black without them)
       var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
       stel.core.stars.addDataSource({ url: base + 'stars' });
       stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
@@ -48,6 +56,9 @@ export function preloadStellarium(lat, lon) {
       stel.core.observer.longitude = initLon;
       stel.core.observer.pitch = 45 * Math.PI / 180;
       stel.core.observer.yaw = 0;
+      console.log('[AR] Observer & catalogs set');
+    }
+  });
     }
   });
 }
@@ -126,35 +137,30 @@ export async function startARMode(latitude, longitude, onStop) {
     videoEl = video;
     overlayEl = overlay;
     smoothHeading = 0;
+
+    // Engine is initialized ONCE by preloadStellarium. Just update observer.
     if (engineReady && stel) {
+      console.log('[AR] Reusing preloaded engine');
       stel.core.observer.latitude = latitude;
       stel.core.observer.longitude = longitude;
       stel.core.observer.pitch = 45 * Math.PI / 180;
       stel.core.observer.yaw = 0;
-      if (!stel._dataSourcesLoaded) {
-        stel._dataSourcesLoaded = true;
-        var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
-        stel.core.stars.addDataSource({ url: base + 'stars' });
-        stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
-        stel.core.dsos.addDataSource({ url: base + 'dso' });
-      }
-    } else if (typeof StelWebEngine !== 'undefined') {
-      StelWebEngine({
-        wasmFile: 'lib/stellarium-web-engine.wasm',
-        canvas: canvasEl,
-        onReady: function(engine) {
-          stel = engine;
-          engineReady = true;
-          var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
-          stel.core.stars.addDataSource({ url: base + 'stars' });
-          stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
-          stel.core.dsos.addDataSource({ url: base + 'dso' });
+    } else {
+      // Engine not ready yet — preload was called earlier, give it time
+      console.log('[AR] Engine not ready, will poll...');
+      // Keep checking every 500ms until ready
+      var checkReady = setInterval(function() {
+        if (engineReady && stel && arActive) {
+          clearInterval(checkReady);
+          console.log('[AR] Engine became ready');
           stel.core.observer.latitude = latitude;
           stel.core.observer.longitude = longitude;
           stel.core.observer.pitch = 45 * Math.PI / 180;
           stel.core.observer.yaw = 0;
         }
-      });
+      }, 500);
+      // Stop polling after 15s
+      setTimeout(function() { clearInterval(checkReady); }, 15000);
     }
     startSensor();
     renderLoop();

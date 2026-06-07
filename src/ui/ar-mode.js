@@ -10,13 +10,13 @@ let skyIframe = null;
 let orientation = { heading: 0, altitude: 45 };
 let animFrame = null;
 
-function buildArStellariumUrl(lat, lon, alt) {
+function buildArStellariumUrl(lat, lon, az, alt) {
   const params = new URLSearchParams({
     lat: lat.toFixed(4),
     lng: lon.toFixed(4),
-    az: '0',               // center at north; CSS rotate(-heading) aligns to compass
+    az: String(Math.round(az)),
     alt: String(Math.round(alt)),
-    fov: '170',
+    fov: '120',
   });
   return `https://stellarium-web.org/?${params.toString()}`;
 }
@@ -62,7 +62,7 @@ export async function startARMode(latitude, longitude, onStop) {
     // Create Stellarium iframe ONCE — wide FOV, CSS rotates for azimuth
     skyContainer.innerHTML = '';
     skyIframe = document.createElement('iframe');
-    skyIframe.src = buildArStellariumUrl(latitude, longitude, 45);
+    skyIframe.src = buildArStellariumUrl(latitude, longitude, 0, 45);
     skyIframe.style.width = '300%';
     skyIframe.style.height = '300%';
     skyIframe.style.position = 'absolute';
@@ -138,6 +138,8 @@ function handleOrientation(event) {
   }
 }
 
+let lastAzUpdate = 0;
+let lastAzValue = 0;
 let lastAltUpdate = 0;
 let lastAltValue = 45;
 
@@ -147,27 +149,27 @@ function renderLoop() {
   const h = orientation.heading;
   const alt = orientation.altitude;
 
-  // Azimuth: iframe centered on north (az=0). rotate(-heading) puts
-  // compass heading H at the crosshair.
-  //   heading=0 (N) → rotate 0°   → north at crosshair
-  //   heading=90 (E) → rotate -90° → east at crosshair
-  const skyContainer = document.getElementById('ar-sky');
-  if (skyContainer) {
-    skyContainer.style.transform = `rotate(${-h}deg)`;
-  }
-
-  // Altitude: reload iframe when tilt changes >10°, throttled to every 2s
-  const roundedAlt = Math.round(alt / 5) * 5; // snap to 5° increments
+  // No CSS rotation — az is set directly in the Stellarium URL.
+  // Reload iframe when heading changes >5° or altitude >10°, throttled.
+  const snapAz = Math.round(h / 5) * 5;
+  const snapAlt = Math.round(alt / 5) * 5;
   const now = Date.now();
-  if (Math.abs(roundedAlt - lastAltValue) >= 10 && now - lastAltUpdate > 2000 && skyIframe) {
-    lastAltValue = roundedAlt;
-    lastAltUpdate = now;
+  const azChanged = Math.abs(snapAz - lastAzValue) >= 5 && now - lastAzUpdate > 800;
+  const altChanged = Math.abs(snapAlt - lastAltValue) >= 10 && now - lastAltUpdate > 2000;
+
+  if ((azChanged || altChanged) && skyIframe) {
+    if (azChanged) { lastAzValue = snapAz; lastAzUpdate = now; }
+    if (altChanged) { lastAltValue = snapAlt; lastAltUpdate = now; }
     const lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
     const lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
     if (!isNaN(lat) && !isNaN(lon)) {
-      skyIframe.src = buildArStellariumUrl(lat, lon, alt);
+      skyIframe.src = buildArStellariumUrl(lat, lon, h, alt);
     }
   }
+
+  // Reset rotation — Stellarium handles azimuth internally now
+  const skyContainer = document.getElementById('ar-sky');
+  if (skyContainer) skyContainer.style.transform = '';
 
   // Compass ring
   const compassRing = overlayEl?.querySelector('#ar-compass-ring');

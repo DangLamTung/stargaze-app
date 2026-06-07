@@ -1,22 +1,22 @@
 /**
  * ARMode — Augmented Reality sky view using device IMU + GPS + camera.
- * Overlays Stellarium star map (loaded once, rotated via CSS) + Bortle/cloud data.
+ * Loads Stellarium ONCE (wide FOV), rotates via CSS — zero reload flicker.
  */
 
 let arActive = false;
 let videoEl = null;
 let overlayEl = null;
 let skyIframe = null;
-let orientation = { heading: 0, altitude: 45 };
+let orientation = { heading: 0, altitude: 45, alpha: 0, beta: 0, gamma: 0 };
 let animFrame = null;
 
-function buildArStellariumUrl(lat, lon, az, alt) {
+function buildArStellariumUrl(lat, lon, alt) {
   const params = new URLSearchParams({
     lat: lat.toFixed(4),
     lng: lon.toFixed(4),
-    az: String(Math.round(az)),
+    az: '0',               // fixed at north; CSS rotation handles compass alignment
     alt: String(Math.round(alt)),
-    fov: '120',
+    fov: '170',            // wide enough so rotation never shows edges
   });
   return `https://stellarium-web.org/?${params.toString()}`;
 }
@@ -37,7 +37,6 @@ export async function startARMode(latitude, longitude, onStop) {
   }
 
   try {
-    // Request camera (rear/environment facing)
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false,
@@ -45,7 +44,6 @@ export async function startARMode(latitude, longitude, onStop) {
     video.srcObject = stream;
     await video.play();
 
-    // Request device orientation permission (iOS 13+)
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       const perm = await DeviceOrientationEvent.requestPermission();
       if (perm !== 'granted') throw new Error('Motion permission denied');
@@ -55,29 +53,21 @@ export async function startARMode(latitude, longitude, onStop) {
     arActive = true;
     videoEl = video;
     overlayEl = overlay;
-
     overlay.dataset.lat = latitude;
     overlay.dataset.lon = longitude;
 
-    // Create Stellarium iframe ONCE — wide FOV, CSS rotates for azimuth
+    // Load Stellarium ONCE — 170° FOV covers full hemisphere. CSS rotate(-heading) aligns to compass.
     skyContainer.innerHTML = '';
     skyIframe = document.createElement('iframe');
-    skyIframe.src = buildArStellariumUrl(latitude, longitude, 0, 45);
-    skyIframe.style.width = '300%';
-    skyIframe.style.height = '300%';
-    skyIframe.style.position = 'absolute';
-    skyIframe.style.top = '-100%';
-    skyIframe.style.left = '-100%';
-    skyIframe.style.border = 'none';
-    skyIframe.style.opacity = '0.75';
-    skyIframe.style.pointerEvents = 'none';
-    skyIframe.style.transition = 'none';
+    skyIframe.src = buildArStellariumUrl(latitude, longitude, 45);
+    skyIframe.style.cssText =
+      'width:300%;height:300%;position:absolute;top:-100%;left:-100%;' +
+      'border:none;opacity:0.85;pointer-events:none;transition:none;';
     skyIframe.allow = 'geolocation';
     skyContainer.appendChild(skyIframe);
 
     window.addEventListener('deviceorientation', handleOrientation, true);
     window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-
     renderLoop();
   } catch (err) {
     console.error('AR mode failed:', err);
@@ -88,60 +78,40 @@ export async function startARMode(latitude, longitude, onStop) {
 
 export function stopARMode() {
   arActive = false;
-
-  if (videoEl && videoEl.srcObject) {
-    videoEl.srcObject.getTracks().forEach(t => t.stop());
-    videoEl.srcObject = null;
-  }
+  if (videoEl?.srcObject) { videoEl.srcObject.getTracks().forEach(t => t.stop()); videoEl.srcObject = null; }
   videoEl = null;
-
-  if (skyIframe) {
-    skyIframe.remove();
-    skyIframe = null;
-  }
-
-  if (overlayEl) {
-    overlayEl.classList.add('hidden');
-  }
+  if (skyIframe) { skyIframe.remove(); skyIframe = null; }
+  if (overlayEl) overlayEl.classList.add('hidden');
   overlayEl = null;
-
-  if (animFrame) {
-    cancelAnimationFrame(animFrame);
-    animFrame = null;
-  }
-
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   window.removeEventListener('deviceorientation', handleOrientation, true);
   window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 }
 
 function handleOrientation(event) {
   let heading = event.alpha;
-  if (event.webkitCompassHeading !== undefined) {
-    heading = event.webkitCompassHeading;
-  }
+  if (event.webkitCompassHeading !== undefined) heading = event.webkitCompassHeading;
   if (heading == null || isNaN(heading)) heading = 0;
   heading = ((heading % 360) + 360) % 360;
 
-  const beta = event.beta || 0;    // pitch: -180..180 (0=flat, 90=vertical)
-  const gamma = event.gamma || 0;  // roll: -90..90
-  const alpha = event.alpha || 0;  // yaw/compass: 0..360
-
+  const beta = event.beta || 0;
   const altitude = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
 
-  orientation = { heading, altitude, alpha, beta, gamma };
+  orientation = {
+    heading, altitude,
+    alpha: event.alpha || 0, beta, gamma: event.gamma || 0,
+  };
 
-  // Debug: print raw values to AR HUD
   const debugEl = document.getElementById('ar-debug');
   if (debugEl) {
     debugEl.textContent =
-      `α(yaw):${alpha.toFixed(1)}° β(pitch):${beta.toFixed(1)}° γ(roll):${gamma.toFixed(1)}° | heading:${heading.toFixed(1)}° alt:${altitude.toFixed(1)}°`;
+      `α:${orientation.alpha.toFixed(1)}° β:${beta.toFixed(1)}° γ:${orientation.gamma.toFixed(1)}° | az:${heading.toFixed(1)}° alt:${altitude.toFixed(1)}°`;
   }
 }
 
-let lastAzUpdate = 0;
-let lastAzValue = 0;
-let lastAltUpdate = 0;
-let lastAltValue = 45;
+// Only reload iframe for altitude changes (infrequent); azimuth = CSS rotation
+let lastAltReload = 0;
+let lastAltSnap = 45;
 
 function renderLoop() {
   if (!arActive) return;
@@ -149,62 +119,52 @@ function renderLoop() {
   const h = orientation.heading;
   const alt = orientation.altitude;
 
-  // No CSS rotation — az is set directly in the Stellarium URL.
-  // Reload iframe when heading changes >5° or altitude >10°, throttled.
-  const snapAz = Math.round(h / 5) * 5;
+  // CSS rotation: iframe center=north (az=0). rotate(-heading) brings heading to crosshair.
+  const skyContainer = document.getElementById('ar-sky');
+  if (skyContainer) skyContainer.style.transform = `rotate(${-h}deg)`;
+
+  // Reload iframe only when altitude shifts >10° (every 3s max)
   const snapAlt = Math.round(alt / 5) * 5;
   const now = Date.now();
-  const azChanged = Math.abs(snapAz - lastAzValue) >= 5 && now - lastAzUpdate > 800;
-  const altChanged = Math.abs(snapAlt - lastAltValue) >= 10 && now - lastAltUpdate > 2000;
-
-  if ((azChanged || altChanged) && skyIframe) {
-    if (azChanged) { lastAzValue = snapAz; lastAzUpdate = now; }
-    if (altChanged) { lastAltValue = snapAlt; lastAltUpdate = now; }
+  if (Math.abs(snapAlt - lastAltSnap) >= 10 && now - lastAltReload > 3000 && skyIframe) {
+    lastAltSnap = snapAlt;
+    lastAltReload = now;
     const lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
     const lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
     if (!isNaN(lat) && !isNaN(lon)) {
-      skyIframe.src = buildArStellariumUrl(lat, lon, h, alt);
+      skyIframe.src = buildArStellariumUrl(lat, lon, alt);
     }
   }
 
-  // Reset rotation — Stellarium handles azimuth internally now
-  const skyContainer = document.getElementById('ar-sky');
-  if (skyContainer) skyContainer.style.transform = '';
-
   // Compass ring
   const compassRing = overlayEl?.querySelector('#ar-compass-ring');
-  if (compassRing) {
-    compassRing.style.transform = `rotate(${-h}deg)`;
-  }
+  if (compassRing) compassRing.style.transform = `rotate(${-h}deg)`;
 
-  // Heading label
   const headingLabel = overlayEl?.querySelector('#ar-heading');
   if (headingLabel) {
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     headingLabel.textContent = `${Math.round(h)}° ${dirs[Math.round(h / 45) % 8]}`;
   }
 
-  // Altitude
   const altLabel = overlayEl?.querySelector('#ar-altitude');
   if (altLabel) altLabel.textContent = `${Math.round(alt)}°`;
 
-  // Cloud info
-  const weather = window._arWeatherData;
+  // Cloud
+  const w = window._arWeatherData;
   const cloudEl = overlayEl?.querySelector('#ar-cloud-pct');
-  if (cloudEl && weather) {
-    const pct = weather.cloudCover != null ? Math.round(weather.cloudCover) : '--';
+  if (cloudEl && w) {
+    const pct = w.cloudCover != null ? Math.round(w.cloudCover) : '--';
     cloudEl.textContent = pct === '--' ? '--' : `${pct}%`;
-    cloudEl.style.color = weather.cloudCover <= 20 ? '#00ff88' : weather.cloudCover <= 50 ? '#ffcc00' : '#ff4444';
+    cloudEl.style.color = w.cloudCover <= 20 ? '#00ff88' : w.cloudCover <= 50 ? '#ffcc00' : '#ff4444';
   }
 
-  // Update map bearing
+  // Map bearing
   const lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
   const lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') {
     window._arBearingCallback(h, lat, lon);
   }
 
-  // Bortle lookup along heading (throttled every 30s)
   bortleLookup(lat, lon, h);
 
   animFrame = requestAnimationFrame(renderLoop);
@@ -218,7 +178,6 @@ async function bortleLookup(lat, lon, heading) {
   const now = Date.now();
   if (now - lastBortleFetch < 30000) return;
   lastBortleFetch = now;
-
   try {
     const R = 6371, d = 15 / R;
     const φ1 = lat * Math.PI / 180, λ1 = lon * Math.PI / 180, θ = heading * Math.PI / 180;
@@ -227,7 +186,6 @@ async function bortleLookup(lat, lon, heading) {
     const res = await fetch(`/api/bortle?lat=${((φ2 * 180 / Math.PI)).toFixed(4)}&lon=${((λ2 * 180 / Math.PI)).toFixed(4)}`);
     if (res.ok) cachedBortle = await res.json();
   } catch (e) { /* ignore */ }
-
   const bortleEl = overlayEl?.querySelector('#ar-bortle');
   if (bortleEl && cachedBortle) {
     const b = cachedBortle.bortle || '?';

@@ -243,7 +243,7 @@ function renderLoop() {
   var h = ((smoothHeading % 360) + 360) % 360;
   if (engineReady && stel && stel.core && stel.core.observer) {
     stel.core.observer.yaw = sensorToCamera(h) * Math.PI / 180;
-    stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
+    stel.core.observer.pitch = -smoothAltitude * Math.PI / 180;
     // Apply time offset from current real time (not frozen base)
     if (typeof stel.date2MJD === 'function') {
       stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetMinutes / (24 * 60);

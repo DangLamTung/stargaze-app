@@ -137,6 +137,7 @@ export function stopARMode() {
   if (videoEl) videoEl.style.filter = '';
   videoEl = null;
   if (skyIframe) { skyIframe.remove(); skyIframe = null; }
+  if (pendingIframe) { pendingIframe.remove(); pendingIframe = null; }
   if (overlayEl) overlayEl.classList.add('hidden');
   overlayEl = null;
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
@@ -144,19 +145,42 @@ export function stopARMode() {
 }
 
 var lastReload = 0;
+var pendingIframe = null;
 
 function renderLoop() {
   if (!arActive) return;
   var h = ((smoothHeading % 360) + 360) % 360;
   var now = Date.now();
 
-  // Update Stellarium az directly every 2s — no CSS rotation (that causes roll)
-  if (now - lastReload > 2000 && skyIframe) {
+  // Double-buffer: load new iframe hidden, swap when ready (no white flash)
+  if (now - lastReload > 2000 && skyIframe && !pendingIframe) {
     lastReload = now;
     var lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
     var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
     if (!isNaN(lat) && !isNaN(lon)) {
-      skyIframe.src = buildUrl(lat, lon, h);
+      // Create offscreen iframe
+      pendingIframe = document.createElement('iframe');
+      pendingIframe.src = buildUrl(lat, lon, h);
+      pendingIframe.style.cssText =
+        'width:300%;height:300%;position:absolute;top:-100%;left:-100%;' +
+        'border:none;opacity:0;pointer-events:none;transition:opacity 0.3s;';
+      pendingIframe.allow = 'geolocation';
+      var sc = document.getElementById('ar-sky');
+      if (sc) sc.appendChild(pendingIframe);
+
+      // When loaded, fade out old, fade in new, remove old
+      pendingIframe.addEventListener('load', function swap() {
+        pendingIframe.removeEventListener('load', swap);
+        if (skyIframe) {
+          skyIframe.style.opacity = '0';
+          setTimeout(function() {
+            if (skyIframe) skyIframe.remove();
+            skyIframe = pendingIframe;
+            skyIframe.style.opacity = '0.85';
+            pendingIframe = null;
+          }, 300);
+        }
+      });
     }
   }
 

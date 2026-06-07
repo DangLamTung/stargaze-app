@@ -1,5 +1,9 @@
 {
   "appId": "com.stargaze.app",
   "appName": "StarGaze",
-  "webDir": "dist"
+  "webDir": "www",
+  "server": {
+    "url": "https://stargaze-app.fly.dev",
+    "cleartext": false
+  }
 }

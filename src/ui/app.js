@@ -442,9 +442,15 @@ function init() {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
+  // Request notification permission for forecast alerts
+  if ('Notification' in window && Notification.permission === 'default') {
+    setTimeout(() => Notification.requestPermission(), 5000);
+  }
+
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     stopNowRefresh();
+    stopForecastWatch();
   });
 
   // Load Ho Chi Minh City by default
@@ -571,6 +577,7 @@ async function selectLocation(location) {
 
     // Start continuous now-score refresh
     startNowRefresh();
+    startForecastWatch();
 
     const stellariumLink = $('stellarium-link');
     if (stellariumLink) stellariumLink.href = getStellariumUrl(location.latitude, location.longitude, 0);
@@ -632,6 +639,42 @@ function stopNowRefresh() {
     clearInterval(refreshTimer);
     refreshTimer = null;
   }
+}
+
+// ─── 7-day forecast watcher (background notification for good nights) ───
+let forecastWatchTimer = null;
+const FORECAST_CHECK_MS = 30 * 60 * 1000; // every 30 minutes
+
+function startForecastWatch() {
+  stopForecastWatch();
+  checkAndNotifyForecast(); // run immediately
+  forecastWatchTimer = setInterval(checkAndNotifyForecast, FORECAST_CHECK_MS);
+}
+
+function stopForecastWatch() {
+  if (forecastWatchTimer) {
+    clearInterval(forecastWatchTimer);
+    forecastWatchTimer = null;
+  }
+}
+
+async function checkAndNotifyForecast() {
+  if (!state.location || !state.scores?.length) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  // Find any night in the next 7 days with score >= 60
+  const goodNights = state.scores.filter(s => s.score >= 60);
+  if (!goodNights.length) return;
+
+  const best = goodNights[0]; // already sorted by date
+  const dateStr = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  new Notification('⭐ Good stargazing coming up!', {
+    body: `${best.rating} night (${best.score}/100) — ${dateStr}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
+    icon: '🔭',
+    badge: '⭐',
+    tag: `stargaze-${best.date}`,
+  });
 }
 
 // ─── Nearby wrappers ───

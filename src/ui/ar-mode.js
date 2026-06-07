@@ -28,9 +28,12 @@ export function preloadStellarium(lat, lon) {
 
 function quatToHdg(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
-  // Vanilla heading from quaternion (0=N, 90=E, 180=S, 270=W)
+  // Raw +Y heading from quaternion (sensor frame)
   return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 360) % 360;
 }
+
+// Convert sensor heading (+Y axis) to camera heading (-Y axis)
+function sensorToCamera(h) { return (h + 180) % 360; }
 
 function quatToAlt(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
@@ -239,7 +242,7 @@ function renderLoop() {
   if (!arActive) return;
   var h = ((smoothHeading % 360) + 360) % 360;
   if (engineReady && stel && stel.core && stel.core.observer) {
-    stel.core.observer.yaw = h * Math.PI / 180;
+    stel.core.observer.yaw = sensorToCamera(h) * Math.PI / 180;
     stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
     // Apply time offset from current real time (not frozen base)
     if (typeof stel.date2MJD === 'function') {
@@ -251,7 +254,7 @@ function renderLoop() {
   var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
   if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
   var hl = overlayEl && overlayEl.querySelector('#ar-heading');
-  if (hl) { var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
+  if (hl) { var camH = sensorToCamera(h); var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(camH)+'\xB0 '+dirs[Math.round(camH/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
   var al = overlayEl && overlayEl.querySelector('#ar-altitude');
   if (al) al.textContent = Math.round(smoothAltitude)+'\xB0';
   var w = window._arWeatherData;
@@ -265,11 +268,11 @@ function renderLoop() {
   } else if (coords && engineReady && stel && stel.core && stel.core.observer) {
     coords.textContent = (stel.core.observer.latitude||0).toFixed(4) + ', ' + (stel.core.observer.longitude||0).toFixed(4);
   }
-  if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(h, lat, lon);
+  if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(sensorToCamera(h), lat, lon);
   var dbg = document.getElementById('ar-debug');
   var engLat = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.latitude : NaN;
   var engLon = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.longitude : NaN;
-  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 alt:' + smoothAltitude.toFixed(1) + '\xB0 | loc:' + (isNaN(engLat)?'--':engLat.toFixed(2)+','+engLon.toFixed(2)) + ' | eng:' + (engineReady?'OK':'loading');
+  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + sensorToCamera(h).toFixed(1) + '\xB0 alt:' + smoothAltitude.toFixed(1) + '\xB0 | loc:' + (isNaN(engLat)?'--':engLat.toFixed(2)+','+engLon.toFixed(2)) + ' | eng:' + (engineReady?'OK':'loading');
   bortleLookup(lat, lon, h);
   animFrame = requestAnimationFrame(renderLoop);
 }

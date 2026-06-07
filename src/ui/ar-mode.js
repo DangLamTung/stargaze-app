@@ -18,7 +18,6 @@ let engineReady = false;
 let initLat = 0, initLon = 0;
 let skyOpacity = 0.92;
 let timeOffsetMinutes = 0;
-let baseMJD = 0;
 
 export function isARActive() { return arActive; }
 
@@ -158,8 +157,7 @@ export async function startARMode(latitude, longitude, onStop) {
           if (stel.core.landscapes) stel.core.landscapes.visible = true;
           // Time: set to now (MJD)
           if (stel.core.observer && typeof stel.date2MJD === 'function') {
-            baseMJD = stel.date2MJD(new Date());
-            stel.core.observer.utc = baseMJD;
+            stel.core.observer.utc = stel.date2MJD(new Date());
           }
           // Labels
           if (stel.core.stars) stel.core.stars.hints_visible = true;
@@ -178,7 +176,7 @@ export async function startARMode(latitude, longitude, onStop) {
       stel.core.observer.longitude = longitude;
       stel.core.observer.pitch = 45 * Math.PI / 180;
       stel.core.observer.yaw = 0;
-      if (typeof stel.date2MJD === 'function') { baseMJD = stel.date2MJD(new Date()); stel.core.observer.utc = baseMJD; }
+      if (typeof stel.date2MJD === 'function') stel.core.observer.utc = stel.date2MJD(new Date());
     }
     startSensor();
     setupSliders();
@@ -244,9 +242,9 @@ function renderLoop() {
   if (engineReady && stel && stel.core && stel.core.observer) {
     stel.core.observer.yaw = h * Math.PI / 180;
     stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
-    // Apply time offset
-    if (baseMJD && typeof stel.date2MJD === 'function') {
-      stel.core.observer.utc = baseMJD + timeOffsetMinutes / (24 * 60);
+    // Apply time offset from current real time (not frozen base)
+    if (typeof stel.date2MJD === 'function') {
+      stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetMinutes / (24 * 60);
     }
   }
   // Apply opacity

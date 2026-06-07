@@ -32,8 +32,9 @@ function quatToHdg(q) {
 function quatToAlt(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
   // Pitch from quaternion: asin(2*(w*y - z*x))
+  // +Z pitch: 0=horizon, 90=zenith (flat). -Z (camera) same pitch.
   var pitch = Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x))));
-  return Math.max(0, Math.min(90, 90 - Math.abs(pitch * 180/Math.PI)));
+  return Math.abs(pitch * 180 / Math.PI);
 }
 
 function angleDelta(a, b) {
@@ -63,6 +64,7 @@ async function startSensor() {
 function handleEvent(event) {
   if (sensorReady) return;
   var isAbs = event.type === 'deviceorientationabsolute';
+  var isLandscape = screen.orientation ? screen.orientation.type.startsWith('landscape') : (Math.abs(window.orientation || 0) === 90);
   var raw;
   if (event.webkitCompassHeading !== undefined) raw = event.webkitCompassHeading;
   else if (isAbs && event.alpha != null) raw = event.alpha;
@@ -72,10 +74,18 @@ function handleEvent(event) {
     raw = (raw - sa + 360) % 360;
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
+  raw = (raw + 180) % 360; // remap: North=180
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Altitude from beta: on Android held up beta==pitch directly
-  var beta = event.beta || 0;
-  var rawAlt = Math.abs(beta);
+  // Pitch: in landscape gamma is front/back tilt, in portrait beta is
+  var pitchAngle;
+  if (isLandscape) {
+    // gamma: 0=vertical/facing-horizon, 90=flat/facing-sky
+    pitchAngle = Math.abs(event.gamma || 0);
+  } else {
+    // beta: 0=flat, 90=vertical → 90-beta = 90=flat/zenith, 0=vertical/horizon
+    pitchAngle = 90 - Math.abs(event.beta || 0);
+  }
+  var rawAlt = Math.max(0, Math.min(90, pitchAngle));
   smoothAltitude += LP * (rawAlt - smoothAltitude);
 }
 
@@ -140,6 +150,18 @@ export async function startARMode(latitude, longitude, onStop) {
           }
           if (stel.core.atmosphere) stel.core.atmosphere.visible = false;
           if (stel.core.landscapes) stel.core.landscapes.visible = false;
+          // Time: set to now (MJD)
+          if (stel.core.observer && typeof stel.date2MJD === 'function') {
+            stel.core.observer.utc = stel.date2MJD(new Date());
+          }
+          // Grid lines
+          if (stel.core.lines) {
+            if (stel.core.lines.equatorial) stel.core.lines.equatorial.visible = true;
+            if (stel.core.lines.azimuthal) stel.core.lines.azimuthal.visible = true;
+          }
+          // Labels
+          if (stel.core.stars) stel.core.stars.hints_visible = true;
+          if (stel.core.planets) stel.core.planets.hints_visible = true;
           stel.core.observer.latitude = latitude;
           stel.core.observer.longitude = longitude;
           stel.core.observer.pitch = 45 * Math.PI / 180;
@@ -153,6 +175,7 @@ export async function startARMode(latitude, longitude, onStop) {
       stel.core.observer.longitude = longitude;
       stel.core.observer.pitch = 45 * Math.PI / 180;
       stel.core.observer.yaw = 0;
+      if (typeof stel.date2MJD === 'function') stel.core.observer.utc = stel.date2MJD(new Date());
     }
     startSensor();
     renderLoop();

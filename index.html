@@ -856,6 +856,8 @@
     <!-- AR Mode Overlay -->
     <div id="ar-overlay" class="ar-overlay hidden">
       <video id="ar-video" autoplay playsinline muted></video>
+      <!-- Stellarium sky overlay (rotates with compass) -->
+      <div id="ar-sky" class="ar-sky-container"></div>
       <div class="ar-hud">
         <!-- Compass ring -->
         <div class="ar-compass" id="ar-compass-ring">
@@ -866,13 +868,24 @@
         </div>
         <!-- Center crosshair -->
         <div class="ar-crosshair">➕</div>
+        <!-- Bortle & cloud info cards -->
+        <div class="ar-data-cards">
+          <div class="ar-data-card" id="ar-bortle-card">
+            <span class="ar-data-label">🌌 Bortle</span>
+            <span class="ar-data-value" id="ar-bortle">--</span>
+          </div>
+          <div class="ar-data-card" id="ar-cloud-card">
+            <span class="ar-data-label">☁️ Cloud</span>
+            <span class="ar-data-value" id="ar-cloud-pct">--</span>
+          </div>
+        </div>
         <!-- Info panel -->
         <div class="ar-info">
           <div class="ar-info-row">
             <span>🧭</span><span id="ar-heading">0° N</span>
           </div>
           <div class="ar-info-row">
-            <span>📐</span><span id="ar-altitude">0°</span>
+            <span>📐</span><span id="ar-altitude">45°</span>
           </div>
         </div>
         <!-- Close button -->

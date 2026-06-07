@@ -21,7 +21,7 @@ export async function searchNearbyPlaces(lat, lon, radiusKm, country = null) {
     return await res.json();
   } catch (err) {
     console.error('Nearby search failed:', err);
-    return [{ id: 'current', name: 'Current Search Location', latitude: lat, longitude: lon, distance: 0 }];
+    return [];
   }
 }
 

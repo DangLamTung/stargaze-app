@@ -1,13 +1,27 @@
 /**
  * ARMode — Augmented Reality sky view using device IMU + GPS + camera.
- * Overlays a star compass and viewing data on the rear camera feed.
+ * Overlays Stellarium star map + Bortle/cloud data on the rear camera feed.
  */
+
+import { setSkyContext } from './sky-map.js';
 
 let arActive = false;
 let videoEl = null;
 let overlayEl = null;
-let orientation = { alpha: 0, beta: 0, gamma: 0, heading: 0 };
+let skyIframe = null;
+let orientation = { alpha: 0, beta: 0, gamma: 0, heading: 0, altitude: 45 };
 let animFrame = null;
+
+function buildArStellariumUrl(lat, lon, heading, altitude) {
+  const params = new URLSearchParams({
+    lat: lat.toFixed(4),
+    lng: lon.toFixed(4),
+    az: String(Math.round(heading)),
+    alt: String(Math.round(altitude)),
+    fov: '70',
+  });
+  return `https://stellarium-web.org/?${params.toString()}`;
+}
 
 export function isARActive() {
   return arActive;
@@ -43,9 +57,30 @@ export async function startARMode(latitude, longitude, onStop) {
     videoEl = video;
     overlayEl = overlay;
 
-    // Set location
+    // Save location
     overlay.dataset.lat = latitude;
     overlay.dataset.lon = longitude;
+
+    // Create Stellarium iframe overlay
+    const skyContainer = overlay.querySelector('#ar-sky');
+    if (skyContainer) {
+      const url = buildArStellariumUrl(latitude, longitude, 0, 45);
+      skyIframe = document.createElement('iframe');
+      skyIframe.src = url;
+      skyIframe.style.width = '250%';
+      skyIframe.style.height = '250%';
+      skyIframe.style.border = 'none';
+      skyIframe.style.position = 'absolute';
+      skyIframe.style.top = '-75%';
+      skyIframe.style.left = '-75%';
+      skyIframe.style.opacity = '0.45';
+      skyIframe.style.pointerEvents = 'none';
+      skyIframe.allow = 'geolocation';
+      skyContainer.appendChild(skyIframe);
+
+      // Update sky map context
+      setSkyContext({ latitude, longitude, bearing: 0, altitude: 45, fov: 70 });
+    }
 
     // Listen for orientation
     window.addEventListener('deviceorientation', handleOrientation, true);
@@ -69,6 +104,12 @@ export function stopARMode() {
   }
   videoEl = null;
 
+  // Remove Stellarium iframe
+  if (skyIframe) {
+    skyIframe.remove();
+    skyIframe = null;
+  }
+
   if (overlayEl) {
     overlayEl.classList.add('hidden');
   }
@@ -84,33 +125,48 @@ export function stopARMode() {
 }
 
 function handleOrientation(event) {
-  // alpha: compass heading (0-360), 0 = north
-  // beta: front-back tilt (-180 to 180), 0 = flat
-  // gamma: left-right tilt (-90 to 90), 0 = flat
-
-  let heading = event.alpha; // Default: alpha is compass heading on Android
-
-  // On iOS, use webkitCompassHeading if available
+  let heading = event.alpha;
   if (event.webkitCompassHeading !== undefined) {
     heading = event.webkitCompassHeading;
   }
-
-  // Normalize
   if (heading == null || isNaN(heading)) heading = 0;
   heading = ((heading % 360) + 360) % 360;
 
+  const beta = event.beta || 0;
+  // Approximate altitude: 0=flat/up, 90=vertical/forward
+  const altitude = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
+
   orientation = {
     alpha: event.alpha || 0,
-    beta: event.beta || 0,
+    beta,
     gamma: event.gamma || 0,
     heading,
+    altitude,
   };
 }
+
+let lastSkyUrl = '';
+let skyUpdateCounter = 0;
 
 function renderLoop() {
   if (!arActive) return;
 
+  skyUpdateCounter++;
   updateOverlay();
+
+  // Update Stellarium iframe every 15 frames (~250ms) to avoid excessive reloads
+  if (skyUpdateCounter % 15 === 0 && skyIframe && overlayEl) {
+    const lat = parseFloat(overlayEl.dataset.lat);
+    const lon = parseFloat(overlayEl.dataset.lon);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      const url = buildArStellariumUrl(lat, lon, orientation.heading, orientation.altitude);
+      if (url !== lastSkyUrl) {
+        lastSkyUrl = url;
+        skyIframe.src = url;
+      }
+    }
+  }
+
   animFrame = requestAnimationFrame(renderLoop);
 }
 
@@ -118,8 +174,7 @@ function updateOverlay() {
   if (!overlayEl) return;
 
   const h = orientation.heading;
-  const beta = orientation.beta; // pitch: -90=up, 0=flat, 90=down
-  const altitude = 90 - Math.abs(beta); // approximate altitude angle
+  const alt = orientation.altitude;
 
   // Compass ring
   const compassRing = overlayEl.querySelector('#ar-compass-ring');
@@ -138,18 +193,70 @@ function updateOverlay() {
   // Altitude
   const altLabel = overlayEl.querySelector('#ar-altitude');
   if (altLabel) {
-    altLabel.textContent = `${Math.round(altitude)}°`;
+    altLabel.textContent = `${Math.round(alt)}°`;
   }
 
-  // Update viewing bearing in main map (if window._arBearingCallback is set)
+  // Update map bearing
   const lat = parseFloat(overlayEl.dataset.lat);
   const lon = parseFloat(overlayEl.dataset.lon);
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') {
     window._arBearingCallback(h, lat, lon);
   }
+
+  // Update Bortle info (shown from last known data)
+  updateArInfo();
 }
 
-// Export bearing for the bearing slider
+let lastBortleFetch = 0;
+let cachedBortle = null;
+
+async function updateArInfo() {
+  if (!overlayEl) return;
+
+  // Cloud info from current weather data
+  const weather = window._arWeatherData;
+  const cloudEl = overlayEl.querySelector('#ar-cloud-pct');
+  if (cloudEl && weather) {
+    const cloudPct = weather.cloudCover != null ? Math.round(weather.cloudCover) : '--';
+    cloudEl.textContent = cloudPct === '--' ? '--' : `${cloudPct}%`;
+    const c = weather.cloudCover;
+    cloudEl.style.color = c <= 20 ? '#00ff88' : c <= 50 ? '#ffcc00' : '#ff4444';
+  }
+
+  const lat = parseFloat(overlayEl.dataset.lat);
+  const lon = parseFloat(overlayEl.dataset.lon);
+  if (isNaN(lat) || isNaN(lon)) return;
+
+  // Fetch Bortle along current heading (throttled to every 30s)
+  const now = Date.now();
+  if (now - lastBortleFetch > 30000) {
+    lastBortleFetch = now;
+    try {
+      // Sample point ~15km along the bearing
+      const R = 6371;
+      const d = 15 / R;
+      const φ1 = lat * Math.PI / 180;
+      const λ1 = lon * Math.PI / 180;
+      const θ = orientation.heading * Math.PI / 180;
+      const φ2 = Math.asin(Math.sin(φ1) * Math.cos(d) + Math.cos(φ1) * Math.sin(d) * Math.cos(θ));
+      const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(d) * Math.cos(φ1), Math.cos(d) - Math.sin(φ1) * Math.sin(φ2));
+      const sampleLat = φ2 * 180 / Math.PI;
+      const sampleLon = λ2 * 180 / Math.PI;
+
+      const res = await fetch(`/api/bortle?lat=${sampleLat.toFixed(4)}&lon=${sampleLon.toFixed(4)}`);
+      if (res.ok) cachedBortle = await res.json();
+    } catch (e) { /* ignore */ }
+  }
+
+  const bortleEl = overlayEl.querySelector('#ar-bortle');
+  if (bortleEl && cachedBortle) {
+    const b = cachedBortle.bortle || '?';
+    const color = b <= 3 ? '#00ff88' : b <= 5 ? '#ffcc00' : '#ff4444';
+    bortleEl.textContent = `B${b}`;
+    bortleEl.style.color = color;
+  }
+}
+
 export function getARHeading() {
   return orientation.heading;
 }

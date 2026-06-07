@@ -591,9 +591,12 @@ function init() {
         const slider = $('bearing-slider');
         if (slider) slider.value = Math.round(heading);
       };
+      // Expose current weather for AR overlay
+      window._arWeatherData = state.weatherData?.current || null;
       ar.startARMode(state.location.latitude, state.location.longitude, (err) => {
         if (err) showToast(`AR: ${err}`, 'error');
         window._arBearingCallback = null;
+        window._arWeatherData = null;
       });
     }
   });

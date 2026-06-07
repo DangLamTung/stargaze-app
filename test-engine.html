@@ -54,36 +54,23 @@
 
               if (engine.core.observer) {
                 log('observer found');
-                var ok = Object.keys(engine.core.observer);
-                log('observer keys: ' + ok.join(', '));
+
+                // ---- LOAD STAR CATALOGS (required — engine shows black without them) ----
+                var baseUrl = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
+                engine.core.stars.addDataSource({ url: baseUrl + 'stars' });
+                engine.core.skycultures.addDataSource({ url: baseUrl + 'skycultures/western', key: 'western' });
+                engine.core.dsos.addDataSource({ url: baseUrl + 'dso' });
+                log('Data sources loaded: stars, dsos, skyculture');
 
                 // Set position
                 engine.core.observer.latitude = 10.762622;
                 engine.core.observer.longitude = 106.660172;
-                log('Position set to HCMC');
+                log('Position set to HCMC (10.76, 106.66)');
 
-                // Try setting yaw
-                if ('yaw' in engine.core.observer) {
-                  engine.core.observer.yaw = 0;
-                  log('yaw property exists, set to 0');
-                } else {
-                  log('WARN: no yaw property on observer');
-                }
-
-                // Try setting pitch
-                if ('pitch' in engine.core.observer) {
-                  engine.core.observer.pitch = 45 * Math.PI / 180;
-                  log('pitch property exists');
-                } else {
-                  log('WARN: no pitch property');
-                }
-
-                // List all observer properties
-                var props = [];
-                for (var k in engine.core.observer) {
-                  try { props.push(k + '=' + engine.core.observer[k]); } catch(e) {}
-                }
-                log('observer values: ' + props.join(', '));
+                // Set yaw (azimuth) and pitch (altitude)
+                engine.core.observer.yaw = 0;
+                engine.core.observer.pitch = 45 * Math.PI / 180;
+                log('yaw=0deg, pitch=45deg');
               } else {
                 log('ERROR: no core.observer');
               }

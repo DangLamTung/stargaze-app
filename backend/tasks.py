@@ -86,6 +86,7 @@ def process_favorite(fav, email_addr, email_pass):
     dew_list = data.get("hourly", {}).get("dew_point_2m", [])
     moon_phase = data.get("daily", {}).get("moon_phase", [0.5])[0]
 
+    times = hourly.get("time", [])
     if not times or not cc_list:
         return
 

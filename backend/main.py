@@ -40,6 +40,8 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 )
                 lat = float(query_components.get("lat", ["0"])[0])
                 lon = float(query_components.get("lon", ["0"])[0])
+                if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                    raise ValueError("Invalid coordinates")
                 data = handle_api_bortle_logic(lat, lon)
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
@@ -57,6 +59,8 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 )
                 lat = float(query_components.get("lat", ["0"])[0])
                 lon = float(query_components.get("lon", ["0"])[0])
+                if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                    raise ValueError("Invalid coordinates")
                 data = handle_api_satellite_cloud_logic(lat, lon)
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
@@ -115,7 +119,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == "/api/favorites":
-            content_length = int(self.headers["Content-Length"])
+            content_length = min(int(self.headers.get("Content-Length", 0)), 65536)
             post_data = self.rfile.read(content_length)
             try:
                 data = json.loads(post_data.decode("utf-8"))
@@ -131,7 +135,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b'{"error": "Failed to save"}')
         elif self.path == "/api/settings":
-            content_length = int(self.headers["Content-Length"])
+            content_length = min(int(self.headers.get("Content-Length", 0)), 8192)
             post_data = self.rfile.read(content_length)
             try:
                 data = json.loads(post_data.decode("utf-8"))

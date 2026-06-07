@@ -26,7 +26,7 @@ export function preloadStellarium(lat, lon) {
 
 function quatToHdg(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
-  return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 360) % 360;
+  return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 180 + 360) % 360;
 }
 
 function quatToAlt(q) {
@@ -73,9 +73,9 @@ function handleEvent(event) {
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Altitude from beta (pitch): 0=flat/up, 90=vertical/forward
+  // Altitude from beta: on Android held up beta==pitch directly
   var beta = event.beta || 0;
-  var rawAlt = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
+  var rawAlt = Math.abs(beta);
   smoothAltitude += LP * (rawAlt - smoothAltitude);
 }
 

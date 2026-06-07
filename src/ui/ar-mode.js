@@ -77,14 +77,13 @@ function handleEvent(event) {
     raw = (raw - sa + 360) % 360;
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
-  // Engine uses South=0 convention; raw alpha already matches
+  raw = (raw + 180) % 360; // Android deviceorientation needs +180 remap
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch: in landscape alpha gives elevation, in portrait beta is
+  // Pitch: in landscape use beta, in portrait use beta
   var pitchAngle;
   if (isLandscape) {
-    // alpha: use as elevation directly, clamp to 0-90
-    pitchAngle = Math.abs((event.alpha || 0) % 180);
-    if (pitchAngle > 90) pitchAngle = 180 - pitchAngle;
+    // beta: 0=vertical/horizon, 90=flat/sky
+    pitchAngle = Math.abs(event.beta || 0);
   } else {
     // beta: 0=flat, 90=vertical → 90-beta = 90=flat/zenith, 0=vertical/horizon
     pitchAngle = 90 - Math.abs(event.beta || 0);
@@ -260,6 +259,12 @@ function renderLoop() {
   if (ce && w) { var p=w.cloudCover!=null?Math.round(w.cloudCover):'--'; ce.textContent=p==='--'?'--':p+'%'; ce.style.color=w.cloudCover<=20?'#00ff88':w.cloudCover<=50?'#ffcc00':'#ff4444'; }
   var lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
   var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
+  var coords = document.getElementById('ar-coords');
+  if (coords && !isNaN(lat) && !isNaN(lon)) {
+    coords.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
+  } else if (coords && engineReady && stel && stel.core && stel.core.observer) {
+    coords.textContent = (stel.core.observer.latitude||0).toFixed(4) + ', ' + (stel.core.observer.longitude||0).toFixed(4);
+  }
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(h, lat, lon);
   var dbg = document.getElementById('ar-debug');
   if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 | engine:' + (engineReady?'OK':'loading');

@@ -859,8 +859,8 @@
     <!-- AR Mode Overlay -->
     <div id="ar-overlay" class="ar-overlay hidden">
       <video id="ar-video" autoplay playsinline muted></video>
-      <!-- Stellarium engine canvas (replaces iframe) -->
-      <canvas id="ar-sky" class="ar-sky-container"></canvas>
+      <!-- Stellarium iframe sky overlay -->
+      <div id="ar-sky" class="ar-sky-container"></div>
       <div class="ar-hud">
         <!-- Compass ring -->
         <div class="ar-compass" id="ar-compass-ring">
@@ -900,7 +900,6 @@
       </div>
     </div>
 
-    <script src="lib/stellarium-web-engine.js?v=2"></script>
     <script src="lib/hammer.js"></script>
     <script src="lib/chartjs-plugin-zoom.js"></script>
     <script type="module" src="src/ui/app.js?v=5"></script>

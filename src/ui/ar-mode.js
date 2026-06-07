@@ -1,66 +1,38 @@
 /**
- * ARMode - Canvas-based AR using Stellarium Web Engine directly.
- * Heading -> engine observer.yaw, no iframes, no reloads, instant updates.
+ * ARMode - Heading-only AR sky view.
+ * Uses AbsoluteOrientationSensor (Android) then Stellarium az parameter.
+ * Altitude locked at 45deg. No CSS rotation — az updates directly every 2s.
  */
 
 let arActive = false;
 let videoEl = null;
 let overlayEl = null;
-let stel = null;
-let canvasEl = null;
+let skyIframe = null;
+let preloadIframe = null;
 let smoothHeading = 0;
 const LP = 0.10;
 let animFrame = null;
 let sensor = null;
 let sensorReady = false;
-let engineReady = false;
-let initLat = 0, initLon = 0;
+
+function buildUrl(lat, lon, az) {
+  return 'https://stellarium-web.org/?' + new URLSearchParams({
+    lat: lat.toFixed(4), lng: lon.toFixed(4),
+    az: String(Math.round(az)), alt: '45', fov: '100',
+  }).toString();
+}
 
 export function isARActive() { return arActive; }
 
 export function preloadStellarium(lat, lon) {
-  initLat = lat; initLon = lon;
-  if (engineReady && stel && stel.core && stel.core.observer) {
-    stel.core.observer.latitude = lat;
-    stel.core.observer.longitude = lon;
-    return;
-  }
-  if (typeof StelWebEngine === 'undefined') {
-    console.log('[AR] StelWebEngine not loaded yet, waiting for script');
-    return;
-  }
-  // Only init ONCE
-  if (window._stelEngineInit) return;
-  window._stelEngineInit = true;
-  console.log('[AR] Initializing Stellarium engine...');
-
-  var c = document.getElementById('ar-preload-canvas');
-  if (!c) {
-    c = document.createElement('canvas');
-    c.id = 'ar-preload-canvas';
-    c.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-    document.body.appendChild(c);
-  }
-  StelWebEngine({
-    wasmFile: 'lib/stellarium-web-engine.wasm',
-    canvas: c,
-    onReady: function(engine) {
-      console.log('[AR] Engine READY');
-      stel = engine;
-      engineReady = true;
-      var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
-      stel.core.stars.addDataSource({ url: base + 'stars' });
-      stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
-      stel.core.dsos.addDataSource({ url: base + 'dso' });
-      stel.core.observer.latitude = initLat;
-      stel.core.observer.longitude = initLon;
-      stel.core.observer.pitch = 45 * Math.PI / 180;
-      stel.core.observer.yaw = 0;
-      console.log('[AR] Observer & catalogs set');
-    }
-  });
-    }
-  });
+  if (preloadIframe) { preloadIframe.remove(); preloadIframe = null; }
+  var c = document.getElementById('ar-preload');
+  if (!c) return;
+  preloadIframe = document.createElement('iframe');
+  preloadIframe.src = buildUrl(lat, lon, 0);
+  preloadIframe.style.cssText = 'width:1px;height:1px;border:none;position:absolute;opacity:0;pointer-events:none;';
+  preloadIframe.allow = 'geolocation';
+  c.appendChild(preloadIframe);
 }
 
 function quatToHdg(q) {
@@ -78,10 +50,13 @@ function angleDelta(a, b) {
 async function startSensor() {
   if (typeof AbsoluteOrientationSensor !== 'undefined') {
     try {
-      sensor = new AbsoluteOrientationSensor({ frequency: 60 });
+      sensor = new AbsoluteOrientationSensor({ frequency: 30 });
       sensor.addEventListener('reading', function() {
         var q = sensor.quaternion;
-        if (q) { sensorReady = true; smoothHeading += LP * angleDelta(quatToHdg(q), smoothHeading); }
+        if (q) {
+          sensorReady = true;
+          smoothHeading += LP * angleDelta(quatToHdg(q), smoothHeading);
+        }
       });
       sensor.addEventListener('error', function() { sensorReady = false; sensor = null; });
       sensor.start();
@@ -118,8 +93,8 @@ export async function startARMode(latitude, longitude, onStop) {
   if (arActive) return;
   var overlay = document.getElementById('ar-overlay');
   var video = document.getElementById('ar-video');
-  canvasEl = document.getElementById('ar-sky');
-  if (!overlay || !video || !canvasEl) return;
+  var skyCont = document.getElementById('ar-sky');
+  if (!overlay || !video || !skyCont) return;
   try {
     var stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -136,32 +111,17 @@ export async function startARMode(latitude, longitude, onStop) {
     arActive = true;
     videoEl = video;
     overlayEl = overlay;
+    overlay.dataset.lat = latitude;
+    overlay.dataset.lon = longitude;
     smoothHeading = 0;
-
-    // Engine is initialized ONCE by preloadStellarium. Just update observer.
-    if (engineReady && stel) {
-      console.log('[AR] Reusing preloaded engine');
-      stel.core.observer.latitude = latitude;
-      stel.core.observer.longitude = longitude;
-      stel.core.observer.pitch = 45 * Math.PI / 180;
-      stel.core.observer.yaw = 0;
-    } else {
-      // Engine not ready yet — preload was called earlier, give it time
-      console.log('[AR] Engine not ready, will poll...');
-      // Keep checking every 500ms until ready
-      var checkReady = setInterval(function() {
-        if (engineReady && stel && arActive) {
-          clearInterval(checkReady);
-          console.log('[AR] Engine became ready');
-          stel.core.observer.latitude = latitude;
-          stel.core.observer.longitude = longitude;
-          stel.core.observer.pitch = 45 * Math.PI / 180;
-          stel.core.observer.yaw = 0;
-        }
-      }, 500);
-      // Stop polling after 15s
-      setTimeout(function() { clearInterval(checkReady); }, 15000);
-    }
+    skyCont.innerHTML = '';
+    if (preloadIframe) { skyIframe = preloadIframe; preloadIframe = null; }
+    else { skyIframe = document.createElement('iframe'); skyIframe.allow = 'geolocation'; }
+    skyIframe.src = buildUrl(latitude, longitude, 0);
+    skyIframe.style.cssText =
+      'width:300%;height:300%;position:absolute;top:-100%;left:-100%;' +
+      'border:none;opacity:0.85;pointer-events:none;transition:none;';
+    skyCont.appendChild(skyIframe);
     startSensor();
     renderLoop();
   } catch (err) {
@@ -176,19 +136,30 @@ export function stopARMode() {
   if (videoEl && videoEl.srcObject) { videoEl.srcObject.getTracks().forEach(function(t){t.stop()}); videoEl.srcObject = null; }
   if (videoEl) videoEl.style.filter = '';
   videoEl = null;
-  canvasEl = null;
+  if (skyIframe) { skyIframe.remove(); skyIframe = null; }
   if (overlayEl) overlayEl.classList.add('hidden');
   overlayEl = null;
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   stopSensor();
 }
 
+var lastReload = 0;
+
 function renderLoop() {
   if (!arActive) return;
   var h = ((smoothHeading % 360) + 360) % 360;
-  if (engineReady && stel && stel.core && stel.core.observer) {
-    stel.core.observer.yaw = h * Math.PI / 180;
+  var now = Date.now();
+
+  // Update Stellarium az directly every 2s — no CSS rotation (that causes roll)
+  if (now - lastReload > 2000 && skyIframe) {
+    lastReload = now;
+    var lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
+    var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
+    if (!isNaN(lat) && !isNaN(lon)) {
+      skyIframe.src = buildUrl(lat, lon, h);
+    }
   }
+
   var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
   if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
   var hl = overlayEl && overlayEl.querySelector('#ar-heading');
@@ -200,7 +171,7 @@ function renderLoop() {
   var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(h, lat, lon);
   var dbg = document.getElementById('ar-debug');
-  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 | engine:' + (engineReady?'OK':'loading');
+  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 | az->Stellarium every 2s';
   bortleLookup(lat, lon, h);
   animFrame = requestAnimationFrame(renderLoop);
 }

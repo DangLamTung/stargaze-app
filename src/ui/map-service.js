@@ -29,16 +29,16 @@ export function initMap(containerId) {
   }
   map = L.map(containerId, { zoomControl: false, attributionControl: true }).setView([20, 0], 3);
 
-  // OpenStreetMap basemap (Default)
-  const basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  // CartoDB Dark Matter basemap (default — pairs well with light pollution overlay)
+  const basemap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
     maxZoom: 19,
   }).addTo(map);
 
   // Store active basemap layer for switching later
   map._activeBasemap = basemap;
 
-  setLightPollutionLayer('none'); // Default none for faster load
+  setLightPollutionLayer('viirs'); // Default: show light pollution overlay
 
   // Add custom sovereignty overlays
   drawSovereigntyOverlays(map);

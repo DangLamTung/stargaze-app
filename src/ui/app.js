@@ -364,6 +364,17 @@ function init() {
   $('nearby-max-results')?.addEventListener('input', e => {
     $('nearby-max-results-label').textContent = e.target.value;
   });
+
+  // Same-country checkbox: update hint
+  $('nearby-same-country')?.addEventListener('change', () => {
+    const hint = $('nearby-country-hint');
+    const checked = $('nearby-same-country')?.checked;
+    if (hint && checked && state.location?.country) {
+      hint.textContent = `(${state.location.country})`;
+    } else if (hint) {
+      hint.textContent = checked ? '' : '(search worldwide)';
+    }
+  });
   $('btn-find-nearby')?.addEventListener('click', handleFindNearby);
 
   document.querySelectorAll('.chart-tab').forEach(tab => tab.addEventListener('click', handleChartTab));
@@ -664,6 +675,13 @@ async function selectLocation(location) {
     // Start continuous now-score refresh
     startNowRefresh();
     startForecastWatch();
+
+    // Update nearby country hint
+    const hint = $('nearby-country-hint');
+    const sameCountry = $('nearby-same-country');
+    if (hint && sameCountry?.checked && location.country) {
+      hint.textContent = `(${location.country})`;
+    }
 
     const stellariumLink = $('stellarium-link');
     if (stellariumLink) stellariumLink.href = getStellariumUrl(location.latitude, location.longitude, 0);

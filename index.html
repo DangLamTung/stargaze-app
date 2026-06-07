@@ -120,8 +120,8 @@
         <div class="layer-control-group" style="margin-bottom: 0.8rem">
           <label>🗺️ Basemap:</label>
           <select id="basemap-select" class="layer-select">
-            <option value="osm" selected>OpenStreetMap (Default)</option>
-            <option value="dark">CartoDB Dark Matter</option>
+            <option value="osm">OpenStreetMap (Default)</option>
+            <option value="dark" selected>CartoDB Dark Matter</option>
             <option value="satellite">ESRI Satellite</option>
           </select>
         </div>
@@ -470,24 +470,12 @@
                   />
                 </div>
               </div>
-              <div class="param-row" style="flex: 1">
-                <label for="nearby-country" style="display: block; margin-bottom: 0.3rem; font-size: 0.8rem"
-                  >Country (Optional)</label
-                >
-                <input
-                  type="text"
-                  id="nearby-country"
-                  placeholder="e.g. US, VN, France"
-                  style="
-                    width: 100%;
-                    padding: 0.4rem 0.5rem;
-                    border-radius: 4px;
-                    background: rgba(0, 0, 0, 0.5);
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                    color: white;
-                    font-size: 0.85rem;
-                  "
-                />
+              <div class="param-row" style="flex: 1; display: flex; align-items: center; gap: 0.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.85rem; color: #ccc;">
+                  <input type="checkbox" id="nearby-same-country" checked style="cursor: pointer; accent-color: var(--primary);" />
+                  🌏 Same country/region only
+                </label>
+                <span id="nearby-country-hint" style="font-size: 0.7rem; color: #666;"></span>
               </div>
               <button
                 id="btn-find-nearby"
@@ -590,8 +578,8 @@
                       font-size: 0.85rem;
                     "
                   >
-                    <option value="9">Any (1-9)</option>
-                    <option value="4" selected>≤ 4 (Dark)</option>
+                    <option value="9" selected>Any (1-9)</option>
+                    <option value="4">≤ 4 (Dark)</option>
                     <option value="3">≤ 3 (Excellent)</option>
                     <option value="2">≤ 2 (Pristine)</option>
                     <option value="5">≤ 5 (Suburban)</option>
@@ -613,8 +601,8 @@
                       font-size: 0.85rem;
                     "
                   >
-                    <option value="100">Any</option>
-                    <option value="20" selected>≤ 20%</option>
+                    <option value="100" selected>Any</option>
+                    <option value="20">≤ 20%</option>
                     <option value="40">≤ 40%</option>
                     <option value="60">≤ 60%</option>
                     <option value="10">≤ 10%</option>

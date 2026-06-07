@@ -15,7 +15,18 @@ export async function handleFindNearby(state, $, applyFiltersFn) {
 
   const radius = parseInt($('nearby-radius').value, 10) || 100;
   const maxResults = parseInt($('nearby-max-results')?.value, 10) || 20;
-  const country = $('nearby-country')?.value.trim() || null;
+
+  // Country filter: if "same country" is checked, use the current location's country
+  const sameCountry = $('nearby-same-country')?.checked ?? true;
+  const country = sameCountry ? (loc.country || null) : null;
+
+  // Update hint text
+  const hint = $('nearby-country-hint');
+  if (hint && sameCountry && loc.country) {
+    hint.textContent = `(${loc.country})`;
+  } else if (hint) {
+    hint.textContent = '';
+  }
 
   const loadingEl = $('nearby-loading');
   const resultsEl = $('nearby-results');

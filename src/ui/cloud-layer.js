@@ -13,7 +13,7 @@ let activeLayers = [];
 let animationTimer = null;
 let animationPosition = 0;
 let layerType = 'none'; // 'satellite' | 'radar' | 'none'
-let currentOpacity = 0.55;
+let currentOpacity = 0.50;
 
 const HIMAWARI_TIMES_URL = 'https://www.jma.go.jp/bosai/himawari/data/satimg/targetTimes_fd.json';
 // Full-disk Himawari tiles are published only for z=3..5.

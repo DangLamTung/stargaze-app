@@ -29,7 +29,8 @@ export function preloadStellarium(lat, lon) {
 
 function quatToHdg(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
-  return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 180 + 360) % 360;
+  // Engine convention: yaw=0=South, yaw=180=North. Raw +Z yaw matches this.
+  return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 360) % 360;
 }
 
 function quatToAlt(q) {
@@ -77,7 +78,7 @@ function handleEvent(event) {
     raw = (raw - sa + 360) % 360;
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
-  raw = (raw + 180) % 360; // remap: North=180
+  // Engine uses South=0 convention; raw alpha already matches
   smoothHeading += LP * angleDelta(raw, smoothHeading);
   // Pitch: in landscape alpha gives elevation, in portrait beta is
   var pitchAngle;
@@ -253,7 +254,7 @@ function renderLoop() {
   var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
   if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
   var hl = overlayEl && overlayEl.querySelector('#ar-heading');
-  if (hl) { var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
+  if (hl) { var dirs=['S','SW','W','NW','N','NE','E','SE']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
   var al = overlayEl && overlayEl.querySelector('#ar-altitude');
   if (al) al.textContent = Math.round(smoothAltitude)+'\xB0';
   var w = window._arWeatherData;

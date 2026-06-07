@@ -10,14 +10,13 @@ let skyIframe = null;
 let orientation = { heading: 0, altitude: 45 };
 let animFrame = null;
 
-function buildArStellariumUrl(lat, lon) {
-  // Wide FOV (180°) — the entire sky in one iframe, rotation handles which part is visible
+function buildArStellariumUrl(lat, lon, alt) {
   const params = new URLSearchParams({
     lat: lat.toFixed(4),
     lng: lon.toFixed(4),
-    az: '180',   // center at south
-    alt: '45',
-    fov: '170',  // ultrawide — full hemisphere
+    az: '180',              // iframe center = south; CSS rotation aligns to compass
+    alt: String(Math.round(alt)),
+    fov: '170',             // ultrawide — full hemisphere
   });
   return `https://stellarium-web.org/?${params.toString()}`;
 }
@@ -60,10 +59,10 @@ export async function startARMode(latitude, longitude, onStop) {
     overlay.dataset.lat = latitude;
     overlay.dataset.lon = longitude;
 
-    // Create Stellarium iframe ONCE — load full sky, rotate via CSS
+    // Create Stellarium iframe ONCE — wide FOV, CSS rotates for azimuth
     skyContainer.innerHTML = '';
     skyIframe = document.createElement('iframe');
-    skyIframe.src = buildArStellariumUrl(latitude, longitude);
+    skyIframe.src = buildArStellariumUrl(latitude, longitude, 45);
     skyIframe.style.width = '300%';
     skyIframe.style.height = '300%';
     skyIframe.style.position = 'absolute';
@@ -129,18 +128,36 @@ function handleOrientation(event) {
   orientation = { heading, altitude };
 }
 
+let lastAltUpdate = 0;
+let lastAltValue = 45;
+
 function renderLoop() {
   if (!arActive) return;
 
   const h = orientation.heading;
   const alt = orientation.altitude;
 
-  // Rotate the sky container smoothly (once loaded, just CSS rotation)
+  // Azimuth: iframe center = south (az=180). Rotate by (180 - heading) so compass
+  // heading H shows the sky at azimuth H at the crosshair.
+  //   heading=0 (N) → rotate 180° → north at crosshair ✓
+  //   heading=180 (S) → rotate 0° → south at crosshair ✓
+  //   heading=90 (E) → rotate 90° → east at crosshair ✓
   const skyContainer = document.getElementById('ar-sky');
   if (skyContainer) {
-    // Stellarium iframe shows az=180 (south) as center.
-    // To align with compass: rotate by (heading - 180) so phone's south = iframe center
-    skyContainer.style.transform = `rotate(${h - 180}deg)`;
+    skyContainer.style.transform = `rotate(${180 - h}deg)`;
+  }
+
+  // Altitude: reload iframe when tilt changes >10°, throttled to every 2s
+  const roundedAlt = Math.round(alt / 5) * 5; // snap to 5° increments
+  const now = Date.now();
+  if (Math.abs(roundedAlt - lastAltValue) >= 10 && now - lastAltUpdate > 2000 && skyIframe) {
+    lastAltValue = roundedAlt;
+    lastAltUpdate = now;
+    const lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
+    const lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
+    if (!isNaN(lat) && !isNaN(lon)) {
+      skyIframe.src = buildArStellariumUrl(lat, lon, alt);
+    }
   }
 
   // Compass ring

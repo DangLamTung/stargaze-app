@@ -9,6 +9,7 @@ let overlayEl = null;
 let stel = null;
 let canvasEl = null;
 let smoothHeading = 0;
+let smoothAltitude = 45;
 const LP = 0.10;
 let animFrame = null;
 let sensor = null;
@@ -28,6 +29,13 @@ function quatToHdg(q) {
   return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 360) % 360;
 }
 
+function quatToAlt(q) {
+  var x = q[0], y = q[1], z = q[2], w = q[3];
+  // Pitch from quaternion: asin(2*(w*y - z*x))
+  var pitch = Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x))));
+  return Math.max(0, Math.min(90, 90 - Math.abs(pitch * 180/Math.PI)));
+}
+
 function angleDelta(a, b) {
   var d = ((a % 360) + 360) % 360 - ((b % 360) + 360) % 360;
   if (d > 180) d -= 360;
@@ -41,7 +49,7 @@ async function startSensor() {
       sensor = new AbsoluteOrientationSensor({ frequency: 60 });
       sensor.addEventListener('reading', function() {
         var q = sensor.quaternion;
-        if (q) { sensorReady = true; smoothHeading += LP * angleDelta(quatToHdg(q), smoothHeading); }
+        if (q) { sensorReady = true; smoothHeading += LP * angleDelta(quatToHdg(q), smoothHeading); smoothAltitude += LP * (quatToAlt(q) - smoothAltitude); }
       });
       sensor.addEventListener('error', function() { sensorReady = false; sensor = null; });
       sensor.start();
@@ -65,6 +73,10 @@ function handleEvent(event) {
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
   smoothHeading += LP * angleDelta(raw, smoothHeading);
+  // Altitude from beta (pitch): 0=flat/up, 90=vertical/forward
+  var beta = event.beta || 0;
+  var rawAlt = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
+  smoothAltitude += LP * (rawAlt - smoothAltitude);
 }
 
 function stopSensor() {
@@ -97,6 +109,7 @@ export async function startARMode(latitude, longitude, onStop) {
     videoEl = video;
     overlayEl = overlay;
     smoothHeading = 0;
+    smoothAltitude = 45;
 
     // Init engine directly on AR canvas (like test-engine.html)
     if (typeof StelWebEngine === 'undefined') {
@@ -167,11 +180,14 @@ function renderLoop() {
   var h = ((smoothHeading % 360) + 360) % 360;
   if (engineReady && stel && stel.core && stel.core.observer) {
     stel.core.observer.yaw = h * Math.PI / 180;
+    stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
   }
   var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
   if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
   var hl = overlayEl && overlayEl.querySelector('#ar-heading');
-  if (hl) { var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]; }
+  if (hl) { var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
+  var al = overlayEl && overlayEl.querySelector('#ar-altitude');
+  if (al) al.textContent = Math.round(smoothAltitude)+'\xB0';
   var w = window._arWeatherData;
   var ce = overlayEl && overlayEl.querySelector('#ar-cloud-pct');
   if (ce && w) { var p=w.cloudCover!=null?Math.round(w.cloudCover):'--'; ce.textContent=p==='--'?'--':p+'%'; ce.style.color=w.cloudCover<=20?'#00ff88':w.cloudCover<=50?'#ffcc00':'#ff4444'; }

@@ -69,7 +69,7 @@ export async function startARMode(latitude, longitude, onStop) {
     skyIframe.style.top = '-100%';
     skyIframe.style.left = '-100%';
     skyIframe.style.border = 'none';
-    skyIframe.style.opacity = '0.5';
+    skyIframe.style.opacity = '0.75';
     skyIframe.style.pointerEvents = 'none';
     skyIframe.style.transition = 'none';
     skyIframe.allow = 'geolocation';

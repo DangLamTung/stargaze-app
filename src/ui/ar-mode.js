@@ -59,8 +59,6 @@ export function preloadStellarium(lat, lon) {
       console.log('[AR] Observer & catalogs set');
     }
   });
-    }
-  });
 }
 
 function quatToHdg(q) {

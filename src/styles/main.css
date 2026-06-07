@@ -2185,11 +2185,10 @@ footer a:hover {
   text-align: center;
 }
 
-/* Stellarium sky overlay */
+/* Stellarium engine canvas */
 .ar-sky-container {
   position: absolute;
   inset: 0;
-  overflow: hidden;
   border: none;
   pointer-events: none;
   mix-blend-mode: lighten;

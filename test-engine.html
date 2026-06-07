@@ -47,7 +47,7 @@
             if (!engine.core.observer) { log('ERROR: no observer'); return; }
 
             // Load catalogs
-            var base = 'https://d3ufh70wg9uzo4.cloudfront.net/skydata/';
+            var base = '/test-skydata/';
             engine.core.stars.addDataSource({ url: base + 'stars' });
             engine.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
             engine.core.dsos.addDataSource({ url: base + 'dso' });

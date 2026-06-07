@@ -336,6 +336,11 @@ function init() {
     const bearing = computeBearing(state.location.latitude, state.location.longitude, e.latlng.lat, e.latlng.lng);
     updateViewingBearing(state.location.latitude, state.location.longitude, bearing);
     updateStellariumBearing(bearing);
+    // Sync slider
+    const slider = $('bearing-slider');
+    const label = $('bearing-label');
+    if (slider) slider.value = Math.round(bearing);
+    if (label) label.textContent = `${Math.round(bearing)}°`;
   });
 
   $('search-input').addEventListener('input', debounce(handleSearch, 300));
@@ -568,6 +573,19 @@ function init() {
   $('controls-toggle-btn')?.addEventListener('click', () => {
     $('map-layers-control')?.classList.toggle('collapsed');
   });
+
+  // Viewing bearing rotation slider
+  $('bearing-slider')?.addEventListener('input', e => {
+    const bearing = parseInt(e.target.value, 10);
+    const label = $('bearing-label');
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const dir = dirs[Math.round(bearing / 45) % 8];
+    if (label) label.textContent = `${bearing}° ${dir}`;
+    if (state.location) {
+      updateViewingBearing(state.location.latitude, state.location.longitude, bearing);
+      import('./sky-map.js').then(m => m.setSkyBearing(bearing));
+    }
+  });
 }
 
 // ─── Search ───
@@ -677,6 +695,14 @@ async function selectLocation(location) {
     updateMapView();
     updateViewingBearing(location.latitude, location.longitude, 0);
     initSkyMapView();
+
+    // Show bearing control and reset slider
+    const bearingCtrl = $('bearing-control');
+    const bearingSlider = $('bearing-slider');
+    const bearingLabel = $('bearing-label');
+    if (bearingCtrl) bearingCtrl.style.display = '';
+    if (bearingSlider) bearingSlider.value = 0;
+    if (bearingLabel) bearingLabel.textContent = '0° N';
 
     // Start continuous now-score refresh
     startNowRefresh();

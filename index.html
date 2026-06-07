@@ -233,6 +233,19 @@
           </div>
         </div>
 
+        <!-- Viewing Direction (bearing angle) -->
+        <div class="layer-control-group" id="bearing-control" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: none;">
+          <label style="display: flex; justify-content: space-between;">
+            <span>🧭 View Angle</span>
+            <span id="bearing-label" style="color: var(--accent-cyan); font-family: monospace;">0° N</span>
+          </label>
+          <input type="range" id="bearing-slider" min="0" max="360" value="0" step="5"
+            style="width: 100%; margin-top: 4px;" />
+          <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #666; margin-top: 2px;">
+            <span>N</span><span>E</span><span>S</span><span>W</span><span>N</span>
+          </div>
+        </div>
+
         <!-- Curated Spots (inside controls, stacks below on mobile) -->
         <div
           id="curated-spots-panel"

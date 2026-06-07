@@ -1873,39 +1873,41 @@ footer a:hover {
 }
 
 @media (max-width: 900px) {
-  /* Compact header */
+  /* Ultra-compact header */
   .floating-header {
-    top: 6px;
-    width: calc(100% - 12px);
-    padding: 6px 10px;
-    gap: 8px;
+    top: 4px;
+    width: calc(100% - 8px);
+    padding: 4px 8px;
+    gap: 4px;
     border-radius: var(--radius-md);
   }
 
   .logo {
-    font-size: 1rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
   }
 
   .icon-btn {
-    width: 30px;
-    height: 30px;
-    font-size: 0.85rem;
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
   }
 
   .search-container {
     order: 3;
     width: 100%;
     min-width: 100%;
-    margin-top: 6px;
+    margin-top: 4px;
   }
 
   .search-container input {
-    padding: 8px 10px;
-    font-size: 0.85rem;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    height: 32px;
   }
 
   .header-actions {
-    gap: 4px;
+    gap: 2px;
   }
 
   /* Mobile panel: bottom sheet */

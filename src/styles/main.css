@@ -1856,17 +1856,39 @@ footer a:hover {
 }
 
 @media (max-width: 900px) {
+  /* Compact header */
   .floating-header {
-    top: 10px;
-    width: calc(100% - 20px);
-    flex-wrap: wrap;
+    top: 6px;
+    width: calc(100% - 12px);
+    padding: 6px 10px;
+    gap: 8px;
     border-radius: var(--radius-md);
   }
+
+  .logo {
+    font-size: 1rem;
+  }
+
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 0.85rem;
+  }
+
   .search-container {
     order: 3;
     width: 100%;
     min-width: 100%;
-    margin-top: 8px;
+    margin-top: 6px;
+  }
+
+  .search-container input {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
+
+  .header-actions {
+    gap: 4px;
   }
 
   /* Mobile panel: bottom sheet */
@@ -1879,7 +1901,7 @@ footer a:hover {
     height: 45vh;
     max-height: 45vh;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    padding: 0 12px 12px 12px; /* Top padding via handle */
+    padding: 0 12px 12px 12px;
     gap: 0.75rem;
   }
 
@@ -1909,7 +1931,6 @@ footer a:hover {
     min-height: 28px;
   }
 
-  /* "Pull up for details" hint in collapsed mode */
   .floating-panel.collapsed .panel-handle::after {
     content: 'Tap ▲ for details';
     color: var(--muted);
@@ -1917,18 +1938,55 @@ footer a:hover {
     margin-left: 8px;
   }
 
+  /* Right-side: stack controls + curated spots vertically */
   .floating-controls {
-    top: 140px;
-    right: 10px;
-    width: 100%;
-    max-width: 280px;
+    top: 100px;
+    right: 6px;
+    width: auto;
+    max-width: 200px;
+    padding: 8px;
+    font-size: 0.75rem;
+    max-height: none; /* let content determine height */
+    overflow-y: visible;
+    border-radius: var(--radius-md);
   }
+
+  .floating-controls label {
+    font-size: 0.7rem;
+  }
+
+  .floating-controls select,
+  .floating-controls input[type="range"] {
+    font-size: 0.7rem;
+  }
+
+  .layer-select {
+    padding: 4px;
+    font-size: 0.7rem;
+  }
+
+  .layer-control-group {
+    margin-bottom: 0.4rem;
+  }
+
+  /* Curated spots now inside .floating-controls — stacks naturally, no extra positioning needed */
+
   .leaflet-top.leaflet-left {
-    left: 10px;
-    top: 140px;
+    left: 6px;
+    top: 100px;
   }
+
   #sky-map-container {
     height: 220px;
+  }
+
+  .now-score-layout {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .now-metrics-row {
+    flex-wrap: wrap;
   }
 }
 

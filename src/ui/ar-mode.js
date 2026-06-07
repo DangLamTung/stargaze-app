@@ -57,6 +57,7 @@ export async function startARMode(latitude, longitude, onStop) {
       audio: false,
     });
     video.srcObject = stream;
+    video.style.filter = 'brightness(0.55)';
     await video.play();
 
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -105,6 +106,7 @@ export async function startARMode(latitude, longitude, onStop) {
 export function stopARMode() {
   arActive = false;
   if (videoEl?.srcObject) { videoEl.srcObject.getTracks().forEach(t => t.stop()); videoEl.srcObject = null; }
+  if (videoEl) videoEl.style.filter = '';
   videoEl = null;
   if (skyIframe) { skyIframe.remove(); skyIframe = null; }
   if (overlayEl) overlayEl.classList.add('hidden');
@@ -148,9 +150,10 @@ function handleOrientation(event) {
   const debugEl = document.getElementById('ar-debug');
   if (debugEl) {
     debugEl.textContent =
-      `${isAbsolute ? 'ABS' : 'rel'} ` +
-      `raw:${rawHeading.toFixed(1)}→smooth:${orientation.heading.toFixed(1)}° ` +
-      `alt:${orientation.altitude.toFixed(1)}° β:${beta.toFixed(1)}° γ:${(event.gamma||0).toFixed(1)}°`;
+      `${isAbsolute ? 'ABS' : 'REL'} ` +
+      `α(yaw):${(event.alpha||0).toFixed(1)}→hdg:${orientation.heading.toFixed(1)}° ` +
+      `β(pitch):${beta.toFixed(1)}° γ(roll):${(event.gamma||0).toFixed(1)}° ` +
+      `alt:${orientation.altitude.toFixed(1)}°`;
   }
 }
 
@@ -192,6 +195,13 @@ function renderLoop() {
   const skyContainer = document.getElementById('ar-sky');
   if (skyContainer && Math.abs(delta) > 0.3) {
     skyContainer.style.transform = `rotate(${-delta}deg)`;
+  }
+
+  // Show rotation value on the sky container
+  const rotDebug = document.getElementById('ar-rot-debug');
+  if (rotDebug) {
+    rotDebug.textContent =
+      `CSS rotate: ${(-delta).toFixed(1)}° | reloadedAz: ${reloadedAz.toFixed(1)}° | hdg: ${h.toFixed(1)}° | reloads in ${((10000 - (Date.now() - lastAzReload)) / 1000).toFixed(0)}s`;
   }
 
   // Compass ring

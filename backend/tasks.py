@@ -67,49 +67,74 @@ def process_favorite(fav, email_addr, email_pass):
 
     ctx = ssl._create_unverified_context()
 
-    url = f"https://api.open-meteo.com/v1/forecast?lat={lat}&lon={lon}&hourly=cloudcover,visibility,relative_humidity_2m,precipitation_probability,dew_point_2m&daily=moon_phase&timezone=auto&forecast_days=1"
+    url = (
+        f"https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        f"&hourly=cloud_cover,visibility,relative_humidity_2m,precipitation_probability,dew_point_2m"
+        f"&daily=moon_phase"
+        f"&timezone=auto"
+        f"&forecast_days=1"
+    )
     req = urllib.request.Request(url, headers={"User-Agent": "StarGaze-Background/1.0"})
     with urllib.request.urlopen(req, timeout=10, context=ctx) as res:
         data = json.loads(res.read())
 
-    cc_list = data.get("hourly", {}).get("cloudcover", [])
+    cc_list = data.get("hourly", {}).get("cloud_cover", [])
     vis_list = data.get("hourly", {}).get("visibility", [])
     hum_list = data.get("hourly", {}).get("relative_humidity_2m", [])
     precip_list = data.get("hourly", {}).get("precipitation_probability", [])
     dew_list = data.get("hourly", {}).get("dew_point_2m", [])
     moon_phase = data.get("daily", {}).get("moon_phase", [0.5])[0]
 
-    if len(cc_list) > 21:
-        cc = cc_list[21]
-        vis = vis_list[21] if len(vis_list) > 21 else 10000
-        hum = hum_list[21] if len(hum_list) > 21 else 50
-        precip = precip_list[21] if len(precip_list) > 21 else 0
-        dew = dew_list[21] if len(dew_list) > 21 else 0
+    if not times or not cc_list:
+        return
 
-        score = (
-            score_cloud(cc) * 0.35
-            + score_moon_phase(moon_phase) * 0.20
-            + 50 * 0.20
-            + score_humidity(hum) * 0.10
-            + score_visibility(vis) * 0.10
-            + score_precip(precip) * 0.05
+    # Find the evening hour (~21:00 local) instead of hardcoded index
+    evening_idx = None
+    for i, t in enumerate(times):
+        if "T21:00" in t or "T20:00" in t or "T22:00" in t:
+            evening_idx = i
+            break
+    if evening_idx is None and len(cc_list) > 21:
+        evening_idx = 21  # fallback
+    if evening_idx is None or evening_idx >= len(cc_list):
+        return
+
+    cc = cc_list[evening_idx]
+    vis = vis_list[evening_idx] if evening_idx < len(vis_list) else 10000
+    hum = hum_list[evening_idx] if evening_idx < len(hum_list) else 50
+    precip = precip_list[evening_idx] if evening_idx < len(precip_list) else 0
+    dew = dew_list[evening_idx] if evening_idx < len(dew_list) else 0
+
+    # Match frontend scoring weights
+    score = (
+        score_cloud(cc) * 0.45
+        + score_moon_phase(moon_phase) * 0.20
+        + score_humidity(hum) * 0.08
+        + score_visibility(vis) * 0.07
+        + score_precip(precip) * 0.05
+        + 50 * 0.15  # Bortle unknown in background, assume average
+    )
+
+    if score >= 40:
+        rating = "Excellent" if score >= 80 else "Good" if score >= 60 else "Fair"
+        subject = f"⭐ StarGaze: {rating} stargazing tonight at {name}"
+        msg = (
+            f"Conditions look {rating.lower()} for stargazing at {name} tonight!\n\n"
+            f"⭐ Score: {int(score)}/100\n"
+            f"☁️ Cloud Cover: {int(cc) if cc is not None else '?'}%\n"
+            f"👁️ Visibility: {int(vis/1000) if vis else '?'} km\n"
+            f"💧 Humidity: {int(hum) if hum is not None else '?'}%\n"
+            f"🌡️ Dew Point: {int(dew) if dew is not None else '?'}°C\n"
+            f"🌙 Moon Phase: {moon_phase*100:.0f}%\n\n"
+            f"— StarGaze"
         )
-
-        if score >= 40:
-            subject = f"⭐ StarGaze Alert for {name}"
-            msg = (
-                f"Good news! Conditions are great for stargazing at {name} tonight.\n\n"
-                f"⭐ Score: {int(score)}/100\n"
-                f"☁️ Cloud Cover: {int(cc)}%\n"
-                f"👁️ Visibility: {int(vis/1000)} km\n"
-                f"💧 Humidity: {int(hum)}%\n"
-                f"🌡️ Dew Point: {dew}°C"
-            )
-            print(f"BACKGROUND NOTIFICATION TRIGGERED: {subject}")
-            try:
-                send_email_alert(email_addr, email_pass, subject, msg)
-            except Exception as em_err:
-                print("Email send failed:", em_err)
+        print(f"BACKGROUND NOTIFICATION: {subject}")
+        try:
+            send_email_alert(email_addr, email_pass, subject, msg)
+            print(f"Email sent to {email_addr}")
+        except Exception as em_err:
+            print("Email send failed:", em_err)
 
 
 def favorites_background_task():

@@ -1,7 +1,7 @@
 /**
  * ARMode - Heading-only AR sky view.
  * Uses AbsoluteOrientationSensor (Android) then Stellarium az parameter.
- * Altitude locked at 45deg, CSS rotation between 15s iframe reloads.
+ * Altitude locked at 45deg. No CSS rotation — az updates directly every 2s.
  */
 
 let arActive = false;
@@ -144,26 +144,21 @@ export function stopARMode() {
 }
 
 var lastReload = 0;
-var reloadedAz = 0;
 
 function renderLoop() {
   if (!arActive) return;
   var h = ((smoothHeading % 360) + 360) % 360;
   var now = Date.now();
-  if (now - lastReload > 15000 && skyIframe) {
-    reloadedAz = h;
+
+  // Update Stellarium az directly every 2s — no CSS rotation (that causes roll)
+  if (now - lastReload > 2000 && skyIframe) {
     lastReload = now;
     var lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
     var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
     if (!isNaN(lat) && !isNaN(lon)) {
       skyIframe.src = buildUrl(lat, lon, h);
-      var sc = document.getElementById('ar-sky');
-      if (sc) sc.style.transform = 'rotate(0deg)';
     }
   }
-  var delta = angleDelta(h, reloadedAz);
-  var sc = document.getElementById('ar-sky');
-  if (sc && Math.abs(delta) > 0.3) sc.style.transform = 'rotate(' + (-delta) + 'deg)';
 
   var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
   if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
@@ -176,7 +171,7 @@ function renderLoop() {
   var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(h, lat, lon);
   var dbg = document.getElementById('ar-debug');
-  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 | CSS:' + (-angleDelta(h,reloadedAz)).toFixed(1) + '\xB0 | reload:' + ((15000-(now-lastReload))/1000).toFixed(0) + 's';
+  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 | az->Stellarium every 2s';
   bortleLookup(lat, lon, h);
   animFrame = requestAnimationFrame(renderLoop);
 }

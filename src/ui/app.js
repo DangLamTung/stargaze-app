@@ -437,6 +437,11 @@ function init() {
 
   console.log('🔭 StarGaze initialized');
 
+  // Register service worker for PWA notifications
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     stopNowRefresh();

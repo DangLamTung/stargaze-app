@@ -74,6 +74,7 @@
           <div id="favorites-list" class="favorites-list"></div>
         </div>
         <div class="header-actions">
+          <button id="ar-btn" type="button" title="AR Sky View" class="icon-btn" style="font-size:1.1rem;">📡</button>
           <button id="settings-btn" type="button" title="Settings" class="icon-btn">⚙️</button>
           <button id="locate-btn" type="button" class="action-btn"><span class="btn-icon">📍</span> My Location</button>
         </div>
@@ -852,6 +853,35 @@
     <!-- Scripts -->
     <script src="lib/leaflet.js"></script>
     <script src="lib/chart.js"></script>
+    <!-- AR Mode Overlay -->
+    <div id="ar-overlay" class="ar-overlay hidden">
+      <video id="ar-video" autoplay playsinline muted></video>
+      <div class="ar-hud">
+        <!-- Compass ring -->
+        <div class="ar-compass" id="ar-compass-ring">
+          <div class="ar-compass-n">N</div>
+          <div class="ar-compass-e">E</div>
+          <div class="ar-compass-s">S</div>
+          <div class="ar-compass-w">W</div>
+        </div>
+        <!-- Center crosshair -->
+        <div class="ar-crosshair">➕</div>
+        <!-- Info panel -->
+        <div class="ar-info">
+          <div class="ar-info-row">
+            <span>🧭</span><span id="ar-heading">0° N</span>
+          </div>
+          <div class="ar-info-row">
+            <span>📐</span><span id="ar-altitude">0°</span>
+          </div>
+        </div>
+        <!-- Close button -->
+        <button class="ar-close-btn" id="ar-close-btn">✕</button>
+        <!-- Hint -->
+        <div class="ar-hint">Point your phone at the sky</div>
+      </div>
+    </div>
+
     <script src="lib/hammer.js"></script>
     <script src="lib/chartjs-plugin-zoom.js"></script>
     <script type="module" src="src/ui/app.js?v=5"></script>

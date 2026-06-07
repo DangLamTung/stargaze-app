@@ -574,6 +574,36 @@ function init() {
     $('map-layers-control')?.classList.toggle('collapsed');
   });
 
+  // AR Mode
+  $('ar-btn')?.addEventListener('click', async () => {
+    if (!state.location) {
+      showToast('Select a location first', 'warn');
+      return;
+    }
+    const ar = await import('./ar-mode.js');
+    if (ar.isARActive()) {
+      ar.stopARMode();
+    } else {
+      // Sync bearing so AR heading updates the map
+      window._arBearingCallback = (heading, lat, lon) => {
+        updateViewingBearing(lat, lon, heading);
+        import('./sky-map.js').then(m => m.setSkyBearing(heading));
+        const slider = $('bearing-slider');
+        if (slider) slider.value = Math.round(heading);
+      };
+      ar.startARMode(state.location.latitude, state.location.longitude, (err) => {
+        if (err) showToast(`AR: ${err}`, 'error');
+        window._arBearingCallback = null;
+      });
+    }
+  });
+
+  $('ar-close-btn')?.addEventListener('click', async () => {
+    const ar = await import('./ar-mode.js');
+    ar.stopARMode();
+    window._arBearingCallback = null;
+  });
+
   // Viewing bearing rotation slider
   $('bearing-slider')?.addEventListener('input', e => {
     const bearing = parseInt(e.target.value, 10);

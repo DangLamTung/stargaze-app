@@ -14,9 +14,9 @@ function buildArStellariumUrl(lat, lon, alt) {
   const params = new URLSearchParams({
     lat: lat.toFixed(4),
     lng: lon.toFixed(4),
-    az: '180',              // iframe center = south; CSS rotation aligns to compass
+    az: '0',               // center at north; CSS rotate(-heading) aligns to compass
     alt: String(Math.round(alt)),
-    fov: '170',             // ultrawide — full hemisphere
+    fov: '170',
   });
   return `https://stellarium-web.org/?${params.toString()}`;
 }
@@ -122,10 +122,20 @@ function handleOrientation(event) {
   if (heading == null || isNaN(heading)) heading = 0;
   heading = ((heading % 360) + 360) % 360;
 
-  const beta = event.beta || 0;
+  const beta = event.beta || 0;    // pitch: -180..180 (0=flat, 90=vertical)
+  const gamma = event.gamma || 0;  // roll: -90..90
+  const alpha = event.alpha || 0;  // yaw/compass: 0..360
+
   const altitude = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
 
-  orientation = { heading, altitude };
+  orientation = { heading, altitude, alpha, beta, gamma };
+
+  // Debug: print raw values to AR HUD
+  const debugEl = document.getElementById('ar-debug');
+  if (debugEl) {
+    debugEl.textContent =
+      `α(yaw):${alpha.toFixed(1)}° β(pitch):${beta.toFixed(1)}° γ(roll):${gamma.toFixed(1)}° | heading:${heading.toFixed(1)}° alt:${altitude.toFixed(1)}°`;
+  }
 }
 
 let lastAltUpdate = 0;
@@ -137,14 +147,13 @@ function renderLoop() {
   const h = orientation.heading;
   const alt = orientation.altitude;
 
-  // Azimuth: iframe center = south (az=180). Rotate by (180 - heading) so compass
-  // heading H shows the sky at azimuth H at the crosshair.
-  //   heading=0 (N) → rotate 180° → north at crosshair ✓
-  //   heading=180 (S) → rotate 0° → south at crosshair ✓
-  //   heading=90 (E) → rotate 90° → east at crosshair ✓
+  // Azimuth: iframe centered on north (az=0). rotate(-heading) puts
+  // compass heading H at the crosshair.
+  //   heading=0 (N) → rotate 0°   → north at crosshair
+  //   heading=90 (E) → rotate -90° → east at crosshair
   const skyContainer = document.getElementById('ar-sky');
   if (skyContainer) {
-    skyContainer.style.transform = `rotate(${180 - h}deg)`;
+    skyContainer.style.transform = `rotate(${-h}deg)`;
   }
 
   // Altitude: reload iframe when tilt changes >10°, throttled to every 2s

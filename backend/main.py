@@ -17,6 +17,9 @@ from .api import (
 from .tasks import favorites_background_task
 from .utils import load_cities
 
+import mimetypes
+mimetypes.add_type('application/wasm', '.wasm')
+
 PORT = int(os.environ.get("PORT", 3000))
 
 

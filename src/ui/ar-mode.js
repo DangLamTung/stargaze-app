@@ -267,7 +267,9 @@ function renderLoop() {
   }
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(h, lat, lon);
   var dbg = document.getElementById('ar-debug');
-  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 | engine:' + (engineReady?'OK':'loading');
+  var engLat = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.latitude : NaN;
+  var engLon = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.longitude : NaN;
+  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 alt:' + smoothAltitude.toFixed(1) + '\xB0 | loc:' + (isNaN(engLat)?'--':engLat.toFixed(2)+','+engLon.toFixed(2)) + ' | eng:' + (engineReady?'OK':'loading');
   bortleLookup(lat, lon, h);
   animFrame = requestAnimationFrame(renderLoop);
 }

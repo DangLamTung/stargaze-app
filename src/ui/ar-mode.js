@@ -19,46 +19,8 @@ let initLat = 0, initLon = 0;
 export function isARActive() { return arActive; }
 
 export function preloadStellarium(lat, lon) {
+  // Just store location - engine will be initialized on the AR canvas when opened
   initLat = lat; initLon = lon;
-  if (engineReady && stel && stel.core && stel.core.observer) {
-    stel.core.observer.latitude = lat;
-    stel.core.observer.longitude = lon;
-    return;
-  }
-  if (typeof StelWebEngine === 'undefined') {
-    console.log('[AR] StelWebEngine not loaded yet, waiting for script');
-    return;
-  }
-  // Only init ONCE
-  if (window._stelEngineInit) return;
-  window._stelEngineInit = true;
-  console.log('[AR] Initializing Stellarium engine...');
-
-  var c = document.getElementById('ar-preload-canvas');
-  if (!c) {
-    c = document.createElement('canvas');
-    c.id = 'ar-preload-canvas';
-    c.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-    document.body.appendChild(c);
-  }
-  StelWebEngine({
-    wasmFile: 'lib/stellarium-web-engine.wasm',
-    canvas: c,
-    onReady: function(engine) {
-      console.log('[AR] Engine READY');
-      stel = engine;
-      engineReady = true;
-      var base = '/test-skydata/';
-      stel.core.stars.addDataSource({ url: base + 'stars' });
-      stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
-      stel.core.dsos.addDataSource({ url: base + 'dso' });
-      stel.core.observer.latitude = initLat;
-      stel.core.observer.longitude = initLon;
-      stel.core.observer.pitch = 45 * Math.PI / 180;
-      stel.core.observer.yaw = 0;
-      console.log('[AR] Observer & catalogs set');
-    }
-  });
 }
 
 function quatToHdg(q) {
@@ -136,29 +98,38 @@ export async function startARMode(latitude, longitude, onStop) {
     overlayEl = overlay;
     smoothHeading = 0;
 
-    // Engine is initialized ONCE by preloadStellarium. Just update observer.
-    if (engineReady && stel) {
-      console.log('[AR] Reusing preloaded engine');
-      stel.core.observer.latitude = latitude;
-      stel.core.observer.longitude = longitude;
-      stel.core.observer.pitch = 45 * Math.PI / 180;
-      stel.core.observer.yaw = 0;
-    } else {
-      // Engine not ready yet — preload was called earlier, give it time
-      console.log('[AR] Engine not ready, will poll...');
-      // Keep checking every 500ms until ready
-      var checkReady = setInterval(function() {
-        if (engineReady && stel && arActive) {
-          clearInterval(checkReady);
-          console.log('[AR] Engine became ready');
+    // Init engine directly on AR canvas (like test-engine.html)
+    if (typeof StelWebEngine === 'undefined') {
+      console.log('[AR] StelWebEngine not loaded');
+      return;
+    }
+    if (!window._stelEngineInit) {
+      window._stelEngineInit = true;
+      console.log('[AR] Initializing engine on AR canvas...');
+      StelWebEngine({
+        wasmFile: 'lib/stellarium-web-engine.wasm',
+        canvas: canvasEl,
+        onReady: function(engine) {
+          console.log('[AR] Engine READY');
+          stel = engine;
+          engineReady = true;
+          var base = '/test-skydata/';
+          stel.core.stars.addDataSource({ url: base + 'stars' });
+          stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
+          stel.core.dsos.addDataSource({ url: base + 'dso' });
           stel.core.observer.latitude = latitude;
           stel.core.observer.longitude = longitude;
           stel.core.observer.pitch = 45 * Math.PI / 180;
           stel.core.observer.yaw = 0;
+          console.log('[AR] Catalogs & observer set');
         }
-      }, 500);
-      // Stop polling after 15s
-      setTimeout(function() { clearInterval(checkReady); }, 15000);
+      });
+    } else if (engineReady && stel) {
+      // Already initialized from a previous AR session
+      stel.core.observer.latitude = latitude;
+      stel.core.observer.longitude = longitude;
+      stel.core.observer.pitch = 45 * Math.PI / 180;
+      stel.core.observer.yaw = 0;
     }
     startSensor();
     renderLoop();

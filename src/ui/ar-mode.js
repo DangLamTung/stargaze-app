@@ -28,7 +28,7 @@ export function preloadStellarium(lat, lon) {
 
 function quatToHdg(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
-  // Engine convention: yaw=0=South, yaw=180=North. Raw +Z yaw matches this.
+  // Vanilla heading from quaternion (0=N, 90=E, 180=S, 270=W)
   return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 360) % 360;
 }
 
@@ -77,15 +77,13 @@ function handleEvent(event) {
     raw = (raw - sa + 360) % 360;
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
-  raw = (raw + 180) % 360; // Android deviceorientation needs +180 remap
+  // Vanilla heading, no remapping
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch: in landscape use beta, in portrait use beta
+  // Pitch from deviceorientation
   var pitchAngle;
   if (isLandscape) {
-    // beta: 0=vertical/horizon, 90=flat/sky
     pitchAngle = Math.abs(event.beta || 0);
   } else {
-    // beta: 0=flat, 90=vertical → 90-beta = 90=flat/zenith, 0=vertical/horizon
     pitchAngle = 90 - Math.abs(event.beta || 0);
   }
   var rawAlt = Math.max(0, Math.min(90, pitchAngle));
@@ -121,6 +119,8 @@ export async function startARMode(latitude, longitude, onStop) {
     arActive = true;
     videoEl = video;
     overlayEl = overlay;
+    overlayEl.dataset.lat = latitude;
+    overlayEl.dataset.lon = longitude;
     smoothHeading = 0;
     smoothAltitude = 45;
 
@@ -251,7 +251,7 @@ function renderLoop() {
   var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
   if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
   var hl = overlayEl && overlayEl.querySelector('#ar-heading');
-  if (hl) { var dirs=['S','SW','W','NW','N','NE','E','SE']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
+  if (hl) { var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
   var al = overlayEl && overlayEl.querySelector('#ar-altitude');
   if (al) al.textContent = Math.round(smoothAltitude)+'\xB0';
   var w = window._arWeatherData;

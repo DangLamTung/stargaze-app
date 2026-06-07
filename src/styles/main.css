@@ -1782,7 +1782,54 @@ footer a:hover {
   gap: 1.5rem;
   transition:
     transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 0.3s;
+    opacity 0.3s,
+    height 0.3s ease;
+}
+
+.panel-handle {
+  display: none; /* Hidden on desktop */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  padding: 0 0 4px 0;
+  background: rgba(6, 11, 25, 0.85);
+  backdrop-filter: blur(24px);
+}
+
+.panel-handle-bar {
+  width: 40px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  margin: 4px auto;
+}
+
+.panel-toggle-btn {
+  position: absolute;
+  right: 8px;
+  top: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-glass);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.panel-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.panel-toggle-btn.collapsed {
+  transform: rotate(180deg);
 }
 
 .floating-panel::-webkit-scrollbar {
@@ -1796,10 +1843,9 @@ footer a:hover {
   border-radius: 4px;
 }
 .floating-panel.hidden {
-  display: flex !important; /* Override standard hidden */
-  transform: translateX(-120%);
   opacity: 0;
   pointer-events: none;
+  transform: translateX(-120%);
 }
 
 /* ─── Make Leaflet Controls play nice ─── */
@@ -1822,19 +1868,39 @@ footer a:hover {
     min-width: 100%;
     margin-top: 8px;
   }
+
+  /* Mobile panel: bottom sheet */
   .floating-panel {
     top: auto;
     left: 0;
     right: 0;
     bottom: 0;
     width: 100%;
-    height: 60vh;
+    height: 45vh;
+    max-height: 45vh;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    transform: translateY(0);
+    padding: 0 12px 12px 12px; /* Top padding via handle */
+    gap: 0.75rem;
   }
+
+  .floating-panel.collapsed {
+    height: 10vh;
+    max-height: 10vh;
+    overflow: hidden;
+  }
+
+  .floating-panel.collapsed .panel-toggle-btn {
+    transform: rotate(180deg);
+  }
+
   .floating-panel.hidden {
     transform: translateY(120%);
   }
+
+  .panel-handle {
+    display: flex;
+  }
+
   .floating-controls {
     top: 140px;
     right: 10px;
@@ -1844,6 +1910,9 @@ footer a:hover {
   .leaflet-top.leaflet-left {
     left: 10px;
     top: 140px;
+  }
+  #sky-map-container {
+    height: 220px;
   }
 }
 

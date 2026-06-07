@@ -224,12 +224,41 @@ $('save-settings-btn')?.addEventListener('click', async () => {
 });
 
 $('test-notification-btn')?.addEventListener('click', async () => {
+  // 1. Instant browser notification (mock)
+  if ('Notification' in window) {
+    const perm = Notification.permission;
+    if (perm === 'granted') {
+      new Notification('⭐ StarGaze Test Notification', {
+        body: 'Score: 92/100 🌌 | Cloud: 5% · Vis: 24km · Hum: 38% · Moon: 15%',
+        icon: '/android/app/src/main/res/mipmap-hdpi/ic_launcher.png',
+        tag: 'stargaze-test',
+      });
+      showToast('📬 Browser notification sent! Check your screen.', 'success');
+    } else if (perm === 'default') {
+      const granted = await Notification.requestPermission();
+      if (granted === 'granted') {
+        new Notification('⭐ StarGaze Test Notification', {
+          body: 'Score: 92/100 🌌 | Cloud: 5% · Vis: 24km · Hum: 38% · Moon: 15%',
+          tag: 'stargaze-test',
+        });
+        showToast('📬 Notification sent! (permission granted)', 'success');
+      } else {
+        showToast('⚠️ Notification permission denied', 'warn');
+      }
+    } else {
+      showToast('⚠️ Notifications blocked in browser settings', 'warn');
+    }
+  } else {
+    showToast('⚠️ Browser does not support notifications', 'warn');
+  }
+
+  // 2. Backend email notification
   try {
     const res = await fetch('/api/test-notification', { method: 'POST' });
-    if (res.ok) showToast('Test notification triggered!', 'success');
-    else showToast('Failed to trigger test notification', 'error');
+    if (res.ok) showToast('📧 Email notification triggered!', 'success');
+    else showToast('⚠️ Email failed (check settings)', 'warn');
   } catch (err) {
-    showToast('Failed to connect to backend', 'error');
+    showToast('⚠️ Backend unreachable for email', 'warn');
   }
 });
 
@@ -339,6 +368,44 @@ function init() {
   $('btn-find-nearby')?.addEventListener('click', handleFindNearby);
 
   document.querySelectorAll('.chart-tab').forEach(tab => tab.addEventListener('click', handleChartTab));
+
+  // Mobile panel toggle & drag
+  const panelToggleBtn = $('panel-toggle-btn');
+  const infoPanel = $('info-panel');
+  const panelHandle = $('panel-handle');
+  if (panelToggleBtn && infoPanel && panelHandle) {
+    panelToggleBtn.addEventListener('click', () => {
+      infoPanel.classList.toggle('collapsed');
+      panelToggleBtn.classList.toggle('collapsed');
+    });
+    // Touch drag to resize panel
+    let dragStartY = 0, dragStartH = 0;
+    panelHandle.addEventListener('touchstart', e => {
+      dragStartY = e.touches[0].clientY;
+      dragStartH = infoPanel.getBoundingClientRect().height;
+    }, { passive: true });
+    panelHandle.addEventListener('touchmove', e => {
+      const dy = dragStartY - e.touches[0].clientY;
+      const newH = Math.min(Math.max(dragStartH + dy, window.innerHeight * 0.08), window.innerHeight * 0.8);
+      infoPanel.style.height = newH + 'px';
+      infoPanel.style.maxHeight = newH + 'px';
+    }, { passive: true });
+    panelHandle.addEventListener('touchend', () => {
+      // Snap to collapsed or expanded
+      const h = infoPanel.getBoundingClientRect().height;
+      if (h < window.innerHeight * 0.25) {
+        infoPanel.classList.add('collapsed');
+        panelToggleBtn.classList.add('collapsed');
+        infoPanel.style.height = '';
+        infoPanel.style.maxHeight = '';
+      } else {
+        infoPanel.classList.remove('collapsed');
+        panelToggleBtn.classList.remove('collapsed');
+        infoPanel.style.height = '';
+        infoPanel.style.maxHeight = '';
+      }
+    });
+  }
 
   // Map layer controls
   $('basemap-select')?.addEventListener('change', e => {

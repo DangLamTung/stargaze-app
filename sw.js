@@ -13,3 +13,13 @@ self.addEventListener('notificationclick', event => {
     }),
   );
 });
+
+// Respond to PING from test-notifications.html
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'PING') {
+    const port = event.ports[0];
+    if (port) {
+      port.postMessage({ pong: true, timestamp: Date.now(), version: '1.0' });
+    }
+  }
+});

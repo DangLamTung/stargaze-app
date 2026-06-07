@@ -1,28 +1,48 @@
 /**
  * ARMode — Augmented Reality sky view using device IMU + GPS + camera.
- * Hybrid: periodic az reload + CSS rotation for smooth tracking.
+ * Low-pass filtered heading, pre-cached Stellarium iframe, hybrid az reload + CSS rotation.
  */
 
 let arActive = false;
 let videoEl = null;
 let overlayEl = null;
 let skyIframe = null;
+let preloadIframe = null; // hidden iframe pre-cached before entering AR
 let orientation = { heading: 0, altitude: 45, alpha: 0, beta: 0, gamma: 0 };
+// Low-pass filter state
+let smoothHeading = 0;
+let smoothAltitude = 45;
+const LP = 0.12; // smoothing factor (lower = smoother, more lag)
 let animFrame = null;
-let hasAbsoluteHeading = false; // true when deviceorientationabsolute fires
+let hasAbsoluteHeading = false;
 
 function buildArStellariumUrl(lat, lon, az, alt) {
-  const params = new URLSearchParams({
-    lat: lat.toFixed(4),
-    lng: lon.toFixed(4),
-    az: String(Math.round(az)),
-    alt: String(Math.round(alt)),
-    fov: '100',  // narrower = more detail, CSS handles small heading changes
-  });
-  return `https://stellarium-web.org/?${params.toString()}`;
+  return `https://stellarium-web.org/?${new URLSearchParams({
+    lat: lat.toFixed(4), lng: lon.toFixed(4),
+    az: String(Math.round(az)), alt: String(Math.round(alt)),
+    fov: '100',
+  }).toString()}`;
 }
 
 export function isARActive() { return arActive; }
+
+/**
+ * Preload Stellarium in a hidden iframe so it's cached when AR mode opens.
+ * Call this after a location is selected (e.g. from app.js).
+ */
+export function preloadStellarium(lat, lon) {
+  // Remove old preload
+  if (preloadIframe) { preloadIframe.remove(); preloadIframe = null; }
+
+  const container = document.getElementById('ar-preload');
+  if (!container) return;
+
+  preloadIframe = document.createElement('iframe');
+  preloadIframe.src = buildArStellariumUrl(lat, lon, 0, 45);
+  preloadIframe.style.cssText = 'width:1px;height:1px;border:none;position:absolute;opacity:0;pointer-events:none;';
+  preloadIframe.allow = 'geolocation';
+  container.appendChild(preloadIframe);
+}
 
 export async function startARMode(latitude, longitude, onStop) {
   if (arActive) return;
@@ -40,8 +60,8 @@ export async function startARMode(latitude, longitude, onStop) {
     await video.play();
 
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      const perm = await DeviceOrientationEvent.requestPermission();
-      if (perm !== 'granted') throw new Error('Motion permission denied');
+      if ((await DeviceOrientationEvent.requestPermission()) !== 'granted')
+        throw new Error('Motion permission denied');
     }
 
     overlay.classList.remove('hidden');
@@ -51,18 +71,27 @@ export async function startARMode(latitude, longitude, onStop) {
     overlay.dataset.lat = latitude;
     overlay.dataset.lon = longitude;
     hasAbsoluteHeading = false;
+    smoothHeading = 0;
+    smoothAltitude = 45;
 
-    // Initial load with current heading
+    // Steal the preloaded iframe if available (instant!), otherwise create new
     skyContainer.innerHTML = '';
-    skyIframe = document.createElement('iframe');
-    skyIframe.src = buildArStellariumUrl(latitude, longitude, 0, 45);
-    skyIframe.style.cssText =
-      'width:300%;height:300%;position:absolute;top:-100%;left:-100%;' +
-      'border:none;opacity:0.85;pointer-events:none;transition:none;';
-    skyIframe.allow = 'geolocation';
+    if (preloadIframe) {
+      skyIframe = preloadIframe;
+      preloadIframe = null;
+      skyIframe.style.cssText =
+        'width:300%;height:300%;position:absolute;top:-100%;left:-100%;' +
+        'border:none;opacity:0.85;pointer-events:none;transition:none;';
+    } else {
+      skyIframe = document.createElement('iframe');
+      skyIframe.src = buildArStellariumUrl(latitude, longitude, 0, 45);
+      skyIframe.style.cssText =
+        'width:300%;height:300%;position:absolute;top:-100%;left:-100%;' +
+        'border:none;opacity:0.85;pointer-events:none;transition:none;';
+      skyIframe.allow = 'geolocation';
+    }
     skyContainer.appendChild(skyIframe);
 
-    // Prefer deviceorientationabsolute (true compass heading, no tilt drift)
     window.addEventListener('deviceorientationabsolute', handleOrientation, true);
     window.addEventListener('deviceorientation', handleOrientation, true);
     renderLoop();
@@ -86,42 +115,55 @@ export function stopARMode() {
 }
 
 function handleOrientation(event) {
-  // deviceorientationabsolute gives true compass heading (Earth frame)
-  // deviceorientation.alpha drifts with tilt; only use as fallback
   const isAbsolute = event.type === 'deviceorientationabsolute';
+  let rawHeading;
 
-  let heading;
   if (event.webkitCompassHeading !== undefined) {
-    heading = event.webkitCompassHeading; // iOS
+    rawHeading = event.webkitCompassHeading;
     hasAbsoluteHeading = true;
   } else if (isAbsolute) {
-    heading = event.alpha; // Android absolute = true compass
+    rawHeading = event.alpha;
     hasAbsoluteHeading = true;
   } else if (!hasAbsoluteHeading) {
-    heading = event.alpha; // fallback: regular alpha (may drift)
+    rawHeading = event.alpha;
   } else {
-    return; // ignore non-absolute events once we have absolute
+    return; // ignore non-absolute once we have absolute
   }
 
-  if (heading == null || isNaN(heading)) heading = 0;
-  heading = ((heading % 360) + 360) % 360;
+  if (rawHeading == null || isNaN(rawHeading)) rawHeading = 0;
 
+  // Low-pass filter: exponential smoothing
   const beta = event.beta || 0;
-  const altitude = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
+  const rawAlt = Math.max(0, Math.min(90, 90 - Math.abs(beta)));
+  smoothHeading = smoothHeading + LP * angleDelta(rawHeading, smoothHeading);
+  smoothAltitude = smoothAltitude + LP * (rawAlt - smoothAltitude);
 
-  orientation = { heading, altitude,
-    alpha: event.alpha || 0, beta, gamma: event.gamma || 0 };
+  orientation = {
+    heading: ((smoothHeading % 360) + 360) % 360,
+    altitude: smoothAltitude,
+    alpha: event.alpha || 0, beta, gamma: event.gamma || 0,
+    rawHeading, rawAlt,
+  };
 
   const debugEl = document.getElementById('ar-debug');
   if (debugEl) {
     debugEl.textContent =
-      `${isAbsolute ? 'ABS' : 'rel'} α:${orientation.alpha.toFixed(1)}° β:${beta.toFixed(1)}° γ:${orientation.gamma.toFixed(1)}° | az:${heading.toFixed(1)}° alt:${altitude.toFixed(1)}°`;
+      `${isAbsolute ? 'ABS' : 'rel'} ` +
+      `raw:${rawHeading.toFixed(1)}→smooth:${orientation.heading.toFixed(1)}° ` +
+      `alt:${orientation.altitude.toFixed(1)}° β:${beta.toFixed(1)}° γ:${(event.gamma||0).toFixed(1)}°`;
   }
+}
+
+// Shortest angular difference (-180..180)
+function angleDelta(a, b) {
+  let d = ((a % 360) + 360) % 360 - ((b % 360) + 360) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
 }
 
 let lastAzReload = 0;
 let reloadedAz = 0;
-let lastAltReload = 0;
 let reloadedAlt = 45;
 
 function renderLoop() {
@@ -131,28 +173,24 @@ function renderLoop() {
   const alt = orientation.altitude;
   const now = Date.now();
 
-  // Hybrid: reload iframe every 3s with current az/alt, CSS rotate between reloads
-  if (now - lastAzReload > 3000 && skyIframe) {
+  // Reload iframe every 10s with current heading/altitude
+  if (now - lastAzReload > 10000 && skyIframe) {
     reloadedAz = h;
     reloadedAlt = alt;
     lastAzReload = now;
-    lastAltReload = now;
     const lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
     const lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
     if (!isNaN(lat) && !isNaN(lon)) {
       skyIframe.src = buildArStellariumUrl(lat, lon, h, alt);
-      // Reset CSS rotation after reload (iframe now centered on current heading)
-      const skyContainer = document.getElementById('ar-sky');
-      if (skyContainer) skyContainer.style.transform = 'rotate(0deg)';
+      const sc = document.getElementById('ar-sky');
+      if (sc) sc.style.transform = 'rotate(0deg)';
     }
   }
 
-  // CSS rotation for smooth tracking between reloads
-  // iframe center = reloadedAz. Phone heading = h. delta = h - reloadedAz.
-  const delta = h - reloadedAz;
+  // CSS rotation between reloads (small delta)
+  const delta = angleDelta(h, reloadedAz);
   const skyContainer = document.getElementById('ar-sky');
-  if (skyContainer && Math.abs(delta) > 0.5) {
-    // Small rotation to track heading between reloads
+  if (skyContainer && Math.abs(delta) > 0.3) {
     skyContainer.style.transform = `rotate(${-delta}deg)`;
   }
 
@@ -197,8 +235,7 @@ async function bortleLookup(lat, lon, heading) {
   if (now - lastBortleFetch < 30000) return;
   lastBortleFetch = now;
   try {
-    const R=6371, d=15/R;
-    const φ1=lat*Math.PI/180, λ1=lon*Math.PI/180, θ=heading*Math.PI/180;
+    const R=6371, d=15/R, φ1=lat*Math.PI/180, λ1=lon*Math.PI/180, θ=heading*Math.PI/180;
     const φ2=Math.asin(Math.sin(φ1)*Math.cos(d)+Math.cos(φ1)*Math.sin(d)*Math.cos(θ));
     const λ2=λ1+Math.atan2(Math.sin(θ)*Math.sin(d)*Math.cos(φ1),Math.cos(d)-Math.sin(φ1)*Math.sin(φ2));
     const res=await fetch(`/api/bortle?lat=${((φ2*180/Math.PI)).toFixed(4)}&lon=${((λ2*180/Math.PI)).toFixed(4)}`);

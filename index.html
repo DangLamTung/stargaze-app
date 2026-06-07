@@ -853,6 +853,9 @@
     <!-- Scripts -->
     <script src="lib/leaflet.js"></script>
     <script src="lib/chart.js"></script>
+    <!-- Hidden preload container for Stellarium (cached before AR opens) -->
+    <div id="ar-preload" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none;"></div>
+
     <!-- AR Mode Overlay -->
     <div id="ar-overlay" class="ar-overlay hidden">
       <video id="ar-video" autoplay playsinline muted></video>

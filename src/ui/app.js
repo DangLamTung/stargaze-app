@@ -748,6 +748,9 @@ async function selectLocation(location) {
       hint.textContent = `(${location.country})`;
     }
 
+    // Preload Stellarium for instant AR mode
+    import('./ar-mode.js').then(m => m.preloadStellarium(location.latitude, location.longitude));
+
     const stellariumLink = $('stellarium-link');
     if (stellariumLink) stellariumLink.href = getStellariumUrl(location.latitude, location.longitude, 0);
 

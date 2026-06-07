@@ -2185,14 +2185,16 @@ footer a:hover {
   text-align: center;
 }
 
-/* Stellarium sky overlay */
+/* Stellarium sky overlay — loaded once, rotated smoothly */
 .ar-sky-container {
   position: absolute;
   inset: 0;
   overflow: hidden;
   border-radius: 0;
   pointer-events: none;
-  mix-blend-mode: screen;
+  mix-blend-mode: lighten;
+  transition: none;
+  will-change: transform;
 }
 
 /* Bortle & cloud data cards */

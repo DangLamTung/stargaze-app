@@ -1884,9 +1884,14 @@ footer a:hover {
   }
 
   .floating-panel.collapsed {
-    height: 10vh;
-    max-height: 10vh;
+    height: 7vh;
+    max-height: 7vh;
     overflow: hidden;
+    gap: 0;
+  }
+
+  .floating-panel.collapsed > *:not(.panel-handle) {
+    display: none;
   }
 
   .floating-panel.collapsed .panel-toggle-btn {
@@ -1899,6 +1904,17 @@ footer a:hover {
 
   .panel-handle {
     display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+  }
+
+  /* "Pull up for details" hint in collapsed mode */
+  .floating-panel.collapsed .panel-handle::after {
+    content: 'Tap ▲ for details';
+    color: var(--muted);
+    font-size: 0.7rem;
+    margin-left: 8px;
   }
 
   .floating-controls {

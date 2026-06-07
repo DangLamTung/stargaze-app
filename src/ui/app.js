@@ -227,24 +227,23 @@ $('test-notification-btn')?.addEventListener('click', async () => {
   // 1. Instant browser notification (mock)
   if ('Notification' in window) {
     const perm = Notification.permission;
-    if (perm === 'granted') {
-      new Notification('⭐ StarGaze Test Notification', {
-        body: 'Score: 92/100 🌌 | Cloud: 5% · Vis: 24km · Hum: 38% · Moon: 15%',
-        icon: '/android/app/src/main/res/mipmap-hdpi/ic_launcher.png',
-        tag: 'stargaze-test',
-      });
-      showToast('📬 Browser notification sent! Check your screen.', 'success');
-    } else if (perm === 'default') {
-      const granted = await Notification.requestPermission();
-      if (granted === 'granted') {
+    const sendMock = () => {
+      try {
         new Notification('⭐ StarGaze Test Notification', {
           body: 'Score: 92/100 🌌 | Cloud: 5% · Vis: 24km · Hum: 38% · Moon: 15%',
           tag: 'stargaze-test',
         });
-        showToast('📬 Notification sent! (permission granted)', 'success');
-      } else {
-        showToast('⚠️ Notification permission denied', 'warn');
+        showToast('📬 Browser notification sent! Check your screen.', 'success');
+      } catch (e) {
+        showToast(`⚠️ Notification failed: ${e.message}`, 'warn');
       }
+    };
+    if (perm === 'granted') {
+      sendMock();
+    } else if (perm === 'default') {
+      const granted = await Notification.requestPermission();
+      if (granted === 'granted') sendMock();
+      else showToast('⚠️ Notification permission denied', 'warn');
     } else {
       showToast('⚠️ Notifications blocked in browser settings', 'warn');
     }
@@ -546,6 +545,12 @@ function init() {
 
   // Expose for nearby-spot clicks
   window._selectLocation = selectLocation;
+
+  // On mobile, collapse the info panel by default (map-first layout)
+  if (window.innerWidth <= 900) {
+    $('info-panel')?.classList.add('collapsed');
+    $('panel-toggle-btn')?.classList.add('collapsed');
+  }
 }
 
 // ─── Search ───
@@ -640,6 +645,12 @@ async function selectLocation(location) {
 
     // Force a small delay to guarantee browser DOM reflow applies dimensions
     await new Promise(r => setTimeout(r, 50));
+
+    // On mobile, expand the panel when a location is selected
+    if (window.innerWidth <= 900) {
+      $('info-panel')?.classList.remove('collapsed');
+      $('panel-toggle-btn')?.classList.remove('collapsed');
+    }
 
     renderLocationInfo();
     renderNowScore();
@@ -744,12 +755,12 @@ async function checkAndNotifyForecast() {
   const best = goodNights[0]; // already sorted by date
   const dateStr = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-  new Notification('⭐ Good stargazing coming up!', {
-    body: `${best.rating} night (${best.score}/100) — ${dateStr}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
-    icon: '🔭',
-    badge: '⭐',
-    tag: `stargaze-${best.date}`,
-  });
+  try {
+    new Notification('⭐ Good stargazing coming up!', {
+      body: `${best.rating} night (${best.score}/100) — ${dateStr}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
+      tag: `stargaze-${best.date}`,
+    });
+  } catch (e) { console.warn('Notification construct failed:', e); }
 }
 // ─── Favorites watcher — check all favorited locations in background ───
 let favWatchTimer = null;
@@ -784,10 +795,12 @@ async function checkAllFavorites() {
         // Notify if excellent (score >= 80)
         if (best.score >= 80 && Notification.permission === 'granted') {
           const d = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-          new Notification(`🌟 ${fav.name}: ${best.rating} stargazing!`, {
-            body: `Score ${best.score}/100 — ${d}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
-            icon: '🔭', tag: `fav-${fav.name}-${best.date}`,
-          });
+          try {
+            new Notification(`🌟 ${fav.name}: ${best.rating} stargazing!`, {
+              body: `Score ${best.score}/100 — ${d}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
+              tag: `fav-${fav.name}-${best.date}`,
+            });
+          } catch (e) { console.warn('Fav notification failed:', e); }
         }
       }
     } catch (e) { console.warn(`Fav check failed for ${fav.name}:`, e); }

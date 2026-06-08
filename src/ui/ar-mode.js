@@ -18,6 +18,19 @@ let engineReady = false;
 let initLat = 0, initLon = 0;
 let skyOpacity = 0.92;
 let timeOffsetHours = 0;
+let engineScriptLoaded = false;
+
+function loadEngineScript() {
+  if (engineScriptLoaded) return Promise.resolve();
+  if (typeof StelWebEngine !== 'undefined') { engineScriptLoaded = true; return Promise.resolve(); }
+  return new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = 'lib/stellarium-web-engine.js?v=2';
+    s.onload = function() { engineScriptLoaded = true; resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
 
 export function isARActive() { return arActive; }
 
@@ -132,6 +145,9 @@ export async function startARMode(latitude, longitude, onStop) {
     overlayEl.dataset.lon = longitude;
     smoothHeading = 0;
     smoothAltitude = 45;
+
+    // Load engine script dynamically (not loaded at page start)
+    await loadEngineScript();
 
     // Init engine directly on AR canvas (like test-engine.html)
     if (typeof StelWebEngine === 'undefined') {

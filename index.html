@@ -433,19 +433,9 @@
               </a>
             </div>
             <div class="sky-map-wrapper">
-              <canvas id="panel-sky" class="panel-sky-canvas"></canvas>
-              <div class="panel-sky-controls">
-                <div class="panel-sky-row">
-                  <span style="font-size:0.65rem;color:rgba(255,255,255,0.5);">🕐</span>
-                  <input type="range" id="panel-time" min="-168" max="168" value="0" step="1" style="flex:1;accent-color:#00ff88;" />
-                  <span id="panel-time-val" style="font-size:0.65rem;font-family:monospace;color:#0f0;min-width:36px;">now</span>
-                </div>
-                <div class="panel-sky-row">
-                  <button id="panel-btn-atmo" class="panel-toggle-btn-sky">🌅</button>
-                  <button id="panel-btn-ground" class="panel-toggle-btn-sky active">⛰️</button>
-                  <button id="panel-btn-grid" class="panel-toggle-btn-sky">📐</button>
-                  <span id="panel-sky-debug" style="font-size:0.55rem;color:rgba(255,255,255,0.35);margin-left:auto;"></span>
-                </div>
+              <div id="sky-map-container"></div>
+              <div class="sky-controls">
+                <span class="sky-info">Interactive sky chart. Drag to pan.</span>
               </div>
             </div>
           </section>

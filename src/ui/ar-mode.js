@@ -87,8 +87,14 @@ function handleEvent(event) {
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch: use alpha for elevation on Android
-  var pitchAngle = Math.abs(event.alpha || 0);
+  // Pitch: Android uses alpha, iOS uses beta
+  var isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  var pitchAngle;
+  if (isIOS) {
+    pitchAngle = 90 - Math.abs(event.beta || 0);
+  } else {
+    pitchAngle = Math.abs(event.alpha || 0);
+  }
   var rawAlt = Math.max(0, Math.min(90, pitchAngle));
   smoothAltitude += LP * (rawAlt - smoothAltitude);
 }

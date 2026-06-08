@@ -320,7 +320,7 @@
             // Vanilla heading (same as ar-mode.js quatToHdg)
             var hdg = ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 360) % 360;
             // Vanilla pitch (same as ar-mode.js quatToAlt)
-            var pitchDeg = Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x)))) * 180 / Math.PI;
+            var pitchDeg = Math.asin(Math.max(-1, Math.min(1, 1 - 2*(x*x + y*y)))) * 180 / Math.PI;
             var alt = Math.abs(pitchDeg);
 
             document.getElementById('yaw').value = Math.round(hdg);

@@ -34,10 +34,10 @@ function quatToHdg(q) {
 
 function quatToAlt(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
-  // Pitch of +Z axis from quaternion. For camera (-Z), pitch is same.
-  var pitch = Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x))));
-  // Flat=90 zenith, vertical=0 horizon
-  return 90 - Math.abs(pitch * 180 / Math.PI);
+  // Elevation of +Z from quaternion: asin(1 - 2*(x² + y²))
+  // Flat=90° zenith, vertical=0° horizon
+  var pitch = Math.asin(Math.max(-1, Math.min(1, 1 - 2*(x*x + y*y))));
+  return Math.abs(pitch * 180 / Math.PI);
 }
 
 function angleDelta(a, b) {

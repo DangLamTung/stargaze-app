@@ -169,9 +169,49 @@ $('favorite-btn')?.addEventListener('click', async () => {
   showToast(added ? 'Added to favorites' : 'Removed from favorites', 'success');
 });
 
-// ─── Settings ───
+// ─── Notification permission in settings ───
+$('settings-notif-btn')?.addEventListener('click', async () => {
+  var status = document.getElementById('settings-notif-status');
+  if (!('Notification' in window)) {
+    if (status) status.textContent = '❌ Notifications not supported on this browser';
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    if (status) status.textContent = '✅ Notifications already allowed';
+    return;
+  }
+  try {
+    var result = await Notification.requestPermission();
+    if (result === 'granted') {
+      if (status) status.textContent = '✅ Notifications enabled!';
+      showToast('Notifications enabled', 'success');
+    } else {
+      if (status) status.textContent = '❌ Denied. Enable manually: Chrome → Settings → Site settings → Notifications → stargaze-app.fly.dev → Allow';
+    }
+  } catch(e) {
+    if (status) status.textContent = '❌ Error: ' + e.message;
+  }
+});
+
+// Update notification status when settings opens
+function updateNotifStatus() {
+  var status = document.getElementById('settings-notif-status');
+  if (!status) return;
+  if (!('Notification' in window)) {
+    status.textContent = '❌ Not supported';
+  } else if (Notification.permission === 'granted') {
+    status.textContent = '✅ Allowed';
+  } else if (Notification.permission === 'denied') {
+    status.textContent = '❌ Blocked — tap button below to retry, or enable in Chrome site settings';
+  } else {
+    status.textContent = '⚠️ Not yet requested — tap button below';
+  }
+}
+
+// Update status when settings opens
 $('settings-btn')?.addEventListener('click', async () => {
   $('settings-modal').classList.add('visible');
+  updateNotifStatus();
   try {
     const res = await fetch('/api/settings');
     if (res.ok) {

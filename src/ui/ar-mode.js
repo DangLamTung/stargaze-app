@@ -87,13 +87,8 @@ function handleEvent(event) {
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch: alpha in landscape, beta in portrait
-  var pitchAngle;
-  if (isLandscape) {
-    pitchAngle = Math.abs(event.alpha || 0);
-  } else {
-    pitchAngle = Math.abs(event.beta || 0);
-  }
+  // Pitch: use alpha for elevation on Android
+  var pitchAngle = Math.abs(event.alpha || 0);
   }
   var rawAlt = Math.max(0, Math.min(90, pitchAngle));
   smoothAltitude += LP * (rawAlt - smoothAltitude);

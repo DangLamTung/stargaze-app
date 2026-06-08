@@ -107,10 +107,25 @@ export async function requestNotificationPermission() {
   if (!('Notification' in window)) return false;
   if (Notification.permission === 'granted') return true;
   if (Notification.permission === 'denied') return false;
-  return (await Notification.requestPermission()) === 'granted';
+  try {
+    return (await Notification.requestPermission()) === 'granted';
+  } catch (e) {
+    console.warn('Notification.requestPermission failed:', e);
+    return false;
+  }
 }
 
 export function showNotification(title, options = {}) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return null;
-  return new Notification(title, { icon: '🔭', badge: '⭐', ...options });
+  try {
+    // Remove icon/badge if not valid URLs — they cause TypeError
+    var safeOpts = { body: options.body || '', ...options };
+    delete safeOpts.icon;
+    delete safeOpts.badge;
+    delete safeOpts.image;
+    return new Notification(title, safeOpts);
+  } catch (e) {
+    console.warn('Notification failed:', e);
+    return null;
+  }
 }

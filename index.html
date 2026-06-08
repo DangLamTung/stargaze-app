@@ -758,90 +758,12 @@
             <option value="14400" selected>4 Hours (Recommended)</option>
           </select>
         </div>
-        <div class="form-group" style="margin-top: 12px">
-          <label for="settings-email">Email Address (Sender & Receiver)</label>
-          <input
-            type="email"
-            id="settings-email"
-            placeholder="your.gmail@gmail.com"
-            style="
-              width: 100%;
-              padding: 10px 14px;
-              background: rgba(30, 41, 59, 0.6);
-              border: 1px solid var(--border-glass);
-              border-radius: var(--radius-sm);
-              color: var(--text-primary);
-              outline: none;
-              margin-bottom: 8px;
-            "
-          />
-          <label for="settings-password">App Password (SMTP)</label>
-          <input
-            type="password"
-            id="settings-password"
-            placeholder="16-character app password"
-            style="
-              width: 100%;
-              padding: 10px 14px;
-              background: rgba(30, 41, 59, 0.6);
-              border: 1px solid var(--border-glass);
-              border-radius: var(--radius-sm);
-              color: var(--text-primary);
-              outline: none;
-              margin-bottom: 8px;
-            "
-          />
-          <label for="settings-owm-key">OpenWeatherMap API Key (Optional)</label>
-          <input
-            type="password"
-            id="settings-owm-key"
-            placeholder="Optional — improves live cloud cover readings"
-            style="
-              width: 100%;
-              padding: 10px 14px;
-              background: rgba(30, 41, 59, 0.6);
-              border: 1px solid var(--border-glass);
-              border-radius: var(--radius-sm);
-              color: var(--text-primary);
-              outline: none;
-              margin-bottom: 8px;
-            "
-          />
-          <label for="settings-weatherapi-key">WeatherAPI.com Key (Optional, 1M free calls/mo)</label>
-          <input
-            type="password"
-            id="settings-weatherapi-key"
-            placeholder="Free at weatherapi.com — best observation blend"
-            style="
-              width: 100%;
-              padding: 10px 14px;
-              background: rgba(30, 41, 59, 0.6);
-              border: 1px solid var(--border-glass);
-              border-radius: var(--radius-sm);
-              color: var(--text-primary);
-              outline: none;
-            "
-          />
-          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px">
-            For Gmail, generate an
-            <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--accent-cyan)"
-              >App Password</a
-            >.
-          </div>
-        </div>
         <div style="margin-top: 16px; padding: 12px; background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.15); border-radius: 8px;">
           <div style="font-size: 0.8rem; color: #00ff88; margin-bottom: 6px;">🔔 Notifications</div>
           <div id="settings-notif-status" style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 8px;">Checking...</div>
           <button id="settings-notif-btn" class="btn-submit" style="font-size: 0.75rem; padding: 6px 14px; width: 100%;">Request Notification Permission</button>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 24px">
-          <button
-            id="test-notification-btn"
-            class="btn-submit"
-            style="background: rgba(100, 116, 139, 0.2); border: 1px solid rgba(100, 116, 139, 0.3)"
-          >
-            Test Alert Now
-          </button>
           <button id="save-settings-btn" class="btn-submit">Save Settings</button>
         </div>
       </div>

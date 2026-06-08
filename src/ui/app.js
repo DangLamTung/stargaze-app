@@ -247,18 +247,6 @@ $('settings-btn')?.addEventListener('click', async () => {
       const data = await res.json();
       const el = $('settings-interval');
       if (el) el.value = data.interval;
-      const em = $('settings-email');
-      if (em) em.value = data.email || '';
-      const pw = $('settings-password');
-      if (pw) pw.value = data.password || '';
-      const owm = $('settings-owm-key');
-      if (owm) owm.value = data.owm_key || '';
-      const wapi = $('settings-weatherapi-key');
-      if (wapi) wapi.value = data.weatherapi_key || '';
-
-      // Store keys globally
-      window.STARGAZE_OWM_KEY = data.owm_key || null;
-      window.STARGAZE_WEATHERAPI_KEY = data.weatherapi_key || null;
     }
   } catch (err) {
     console.error('Failed to load settings', err);
@@ -271,20 +259,14 @@ $('close-settings')?.addEventListener('click', () => {
 
 $('save-settings-btn')?.addEventListener('click', async () => {
   const interval = $('settings-interval')?.value || '14400';
-  const email = $('settings-email')?.value || '';
-  const password = $('settings-password')?.value || '';
-  const owm_key = $('settings-owm-key')?.value || '';
-  const weatherapi_key = $('settings-weatherapi-key')?.value || '';
   try {
     const res = await fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interval: parseInt(interval), email, password, owm_key, weatherapi_key }),
+      body: JSON.stringify({ interval: parseInt(interval) }),
     });
     if (res.ok) {
-      window.STARGAZE_OWM_KEY = owm_key;
-      window.STARGAZE_WEATHERAPI_KEY = weatherapi_key;
-      showToast('Settings saved successfully', 'success');
+      showToast('Settings saved', 'success');
       $('settings-modal').classList.remove('visible');
     }
   } catch (err) {
@@ -292,56 +274,9 @@ $('save-settings-btn')?.addEventListener('click', async () => {
   }
 });
 
-$('test-notification-btn')?.addEventListener('click', async () => {
-  // 1. Instant browser notification (mock)
-  if ('Notification' in window) {
-    const perm = Notification.permission;
-    const sendMock = () => {
-      try {
-        new Notification('⭐ StarGaze Test Notification', {
-          body: 'Score: 92/100 🌌 | Cloud: 5% · Vis: 24km · Hum: 38% · Moon: 15%',
-          tag: 'stargaze-test',
-        });
-        showToast('📬 Browser notification sent! Check your screen.', 'success');
-      } catch (e) {
-        showToast(`⚠️ Notification failed: ${e.message}`, 'warn');
-      }
-    };
-    if (perm === 'granted') {
-      sendMock();
-    } else if (perm === 'default') {
-      const granted = await Notification.requestPermission();
-      if (granted === 'granted') sendMock();
-      else showToast('⚠️ Notification permission denied', 'warn');
-    } else {
-      showToast('⚠️ Notifications blocked in browser settings', 'warn');
-    }
-  } else {
-    showToast('⚠️ Browser does not support notifications', 'warn');
-  }
-
-  // 2. Backend email notification
-  try {
-    const res = await fetch('/api/test-notification', { method: 'POST' });
-    if (res.ok) showToast('📧 Email notification triggered!', 'success');
-    else showToast('⚠️ Email failed (check settings)', 'warn');
-  } catch (err) {
-    showToast('⚠️ Backend unreachable for email', 'warn');
-  }
-});
-
 // ─── Init ───
 function init() {
   initMap('map');
-
-  // Pre-load settings (e.g., API keys)
-  fetch('/api/settings')
-    .then(r => r.json())
-    .then(data => {
-      window.STARGAZE_OWM_KEY = data.owm_key || null;
-      window.STARGAZE_WEATHERAPI_KEY = data.weatherapi_key || null;
-    })
-    .catch(console.warn);
 
   loadFavorites().then(() => renderFavoritesList());
 

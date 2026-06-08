@@ -89,7 +89,6 @@ function handleEvent(event) {
   smoothHeading += LP * angleDelta(raw, smoothHeading);
   // Pitch: use alpha for elevation on Android
   var pitchAngle = Math.abs(event.alpha || 0);
-  }
   var rawAlt = Math.max(0, Math.min(90, pitchAngle));
   smoothAltitude += LP * (rawAlt - smoothAltitude);
 }

@@ -330,7 +330,7 @@
 
             if (engineReady) {
               stel.core.observer.yaw = -hdg * Math.PI / 180;
-              stel.core.observer.pitch = -alt * Math.PI / 180;
+              stel.core.observer.pitch = alt * Math.PI / 180;
             }
             updateDebug();
           });
@@ -364,7 +364,7 @@
 
         if (engineReady) {
           stel.core.observer.yaw = -raw * Math.PI / 180;
-          stel.core.observer.pitch = -alt * Math.PI / 180;
+          stel.core.observer.pitch = alt * Math.PI / 180;
         }
         updateDebug();
       }

@@ -79,13 +79,8 @@ function handleEvent(event) {
   if (raw == null || isNaN(raw)) raw = 0;
   // Vanilla heading, no remapping
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch from deviceorientation
-  var pitchAngle;
-  if (isLandscape) {
-    pitchAngle = Math.abs(event.beta || 0);
-  } else {
-    pitchAngle = 90 - Math.abs(event.beta || 0);
-  }
+  // Pitch from deviceorientation: use beta directly on Android
+  var pitchAngle = Math.abs(event.beta || 0);
   var rawAlt = Math.max(0, Math.min(90, pitchAngle));
   smoothAltitude += LP * (rawAlt - smoothAltitude);
 }

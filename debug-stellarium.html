@@ -355,8 +355,7 @@
         raw = (raw - sa + 360) % 360;
 
         var beta = e.beta || 0;
-        var isLandscape = screen.orientation ? screen.orientation.type.startsWith('landscape') : (Math.abs(window.orientation || 0) === 90);
-        var alt = isLandscape ? Math.abs(beta) : (90 - Math.abs(beta));
+        var alt = Math.abs(beta);
 
         document.getElementById('yaw').value = Math.round(raw);
         document.getElementById('yawVal').textContent = Math.round(raw) + '°';

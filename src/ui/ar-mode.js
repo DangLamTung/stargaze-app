@@ -67,25 +67,34 @@ async function startSensor() {
 function handleEvent(event) {
   if (sensorReady) return;
   var isAbs = event.type === 'deviceorientationabsolute';
-  var isLandscape = screen.orientation ? screen.orientation.type.startsWith('landscape') : (Math.abs(window.orientation || 0) === 90);
+  // Detect orientation: screen.orientation API or window.orientation fallback
+  var isLandscape = false;
+  try {
+    if (screen.orientation && screen.orientation.type) {
+      isLandscape = String(screen.orientation.type).startsWith('landscape');
+    } else if (typeof window.orientation !== 'undefined') {
+      isLandscape = Math.abs(window.orientation || 0) === 90;
+    }
+  } catch(e) { isLandscape = false; }
   var raw;
   if (event.webkitCompassHeading !== undefined) raw = event.webkitCompassHeading;
   else if (isAbs && event.alpha != null) raw = event.alpha;
   else if (!isAbs && event.alpha != null) {
     raw = event.alpha;
-    var sa = (screen.orientation && screen.orientation.angle != null) ? screen.orientation.angle : (window.orientation || 0);
+    var sa = 0;
+    try { sa = (screen.orientation && screen.orientation.angle != null) ? screen.orientation.angle : (window.orientation || 0); } catch(e) {}
     raw = (raw - sa + 360) % 360;
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
-  // Vanilla heading, no remapping
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch from deviceorientation: beta in landscape, alpha in portrait
+  // Pitch: beta in landscape, alpha in portrait
   var pitchAngle;
   if (isLandscape) {
     pitchAngle = Math.abs(event.beta || 0);
   } else {
     pitchAngle = Math.abs(event.alpha || 0);
-  }var rawAlt = Math.max(0, Math.min(90, pitchAngle));
+  }
+  var rawAlt = Math.max(0, Math.min(90, pitchAngle));
   smoothAltitude += LP * (rawAlt - smoothAltitude);
 }
 

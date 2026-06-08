@@ -169,6 +169,35 @@ $('favorite-btn')?.addEventListener('click', async () => {
   showToast(added ? 'Added to favorites' : 'Removed from favorites', 'success');
 });
 
+// ─── Notification bell in header ───
+$('notif-btn')?.addEventListener('click', async () => {
+  if (!('Notification' in window)) {
+    showToast('Notifications not supported', 'error');
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    showToast('Notifications already enabled ✅', 'success');
+    return;
+  }
+  try {
+    var result = await Notification.requestPermission();
+    if (result === 'granted') {
+      showToast('Notifications enabled! ✅', 'success');
+      $('notif-btn').style.color = '#00ff88';
+    } else if (result === 'denied') {
+      showToast('Denied. Enable in Chrome settings → Notifications', 'error');
+    }
+  } catch(e) {
+    showToast('Permission request failed: ' + e.message, 'error');
+  }
+});
+
+// Update bell color based on permission
+if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+  var nb = $('notif-btn');
+  if (nb) nb.style.color = '#00ff88';
+}
+
 // ─── Notification permission in settings ───
 $('settings-notif-btn')?.addEventListener('click', async () => {
   var status = document.getElementById('settings-notif-status');
@@ -1001,10 +1030,25 @@ async function handleReminderSubmit(e) {
     }
     var ok = await requestNotificationPermission();
     if (ok) {
+      // Send confirmation now
       showNotification('Reminder Set', {
         body: night.rating + ' night on ' + new Date(night.date).toLocaleDateString(),
       });
-      showToast('Notification enabled!', 'success');
+      // Schedule via service worker for night time
+      var now = Date.now();
+      var target = new Date(night.sunset).getTime() + 30 * 60000; // 30min after sunset
+      var delay = Math.max(1000, target - now);
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SCHEDULE',
+          delay: delay,
+          title: '🔭 Stargazing Tonight!',
+          body: night.rating + ' conditions (' + night.score + '/100) at ' + state.location.name
+        });
+        showToast('Reminder scheduled for sunset! ✅', 'success');
+      } else {
+        showToast('Notification enabled — reminder set!', 'success');
+      }
     } else {
       showToast('Notification denied — check browser site settings', 'error');
     }

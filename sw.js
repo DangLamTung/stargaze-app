@@ -14,12 +14,14 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Respond to PING from test-notifications.html
+// Schedule delayed notification via message from app
 self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'PING') {
-    const port = event.ports[0];
-    if (port) {
-      port.postMessage({ pong: true, timestamp: Date.now(), version: '1.0' });
-    }
+  if (event.data && event.data.type === 'SCHEDULE') {
+    var delay = event.data.delay || 0; // ms
+    var title = event.data.title || 'StarGaze';
+    var body = event.data.body || '';
+    setTimeout(function() {
+      self.registration.showNotification(title, { body: body, tag: 'stargaze-reminder' });
+    }, delay);
   }
 });

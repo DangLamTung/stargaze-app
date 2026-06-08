@@ -224,13 +224,12 @@ function setupSliders() {
   }
   var tmSlider = document.getElementById('ar-time');
   var tmVal = document.getElementById('ar-time-val');
-  var tmDetail = document.getElementById('ar-time-detail');
   if (tmSlider && tmVal) {
     tmSlider.value = timeOffsetHours;
-    updateTimeDisplay();
+    tmVal.textContent = formatTimeOffset(timeOffsetHours);
     tmSlider.addEventListener('input', function() {
       timeOffsetHours = parseInt(this.value);
-      updateTimeDisplay();
+      tmVal.textContent = formatTimeOffset(timeOffsetHours);
     });
   }
 
@@ -263,13 +262,6 @@ function setupSliders() {
     });
   }
 
-  function updateTimeDisplay() {
-    tmVal.textContent = formatTimeOffset(timeOffsetHours);
-    if (tmDetail) {
-      var d = new Date(Date.now() + timeOffsetHours * 3600000);
-      tmDetail.textContent = d.toLocaleString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
-    }
-  }
 }
 
 function formatTimeOffset(hours) {
@@ -288,51 +280,19 @@ function renderLoop() {
   if (engineReady && stel && stel.core && stel.core.observer) {
     stel.core.observer.yaw = (-h) * Math.PI / 180;
     stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
-    // Apply time offset from current real time (not frozen base)
     if (typeof stel.date2MJD === 'function') {
       stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetHours / 24;
     }
   }
-  // Apply opacity
   if (canvasEl) canvasEl.style.opacity = skyOpacity;
   var ring = overlayEl && overlayEl.querySelector('.ar-compass-face');
   if (ring) ring.style.transform = 'rotate(' + h + 'deg)';
-  var hl = overlayEl && overlayEl.querySelector('#ar-heading');
-  if (hl) { var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
-  var al = overlayEl && overlayEl.querySelector('#ar-altitude');
-  if (al) al.textContent = Math.round(smoothAltitude)+'\xB0';
-  var w = window._arWeatherData;
-  var ce = overlayEl && overlayEl.querySelector('#ar-cloud-pct');
-  if (ce && w) { var p=w.cloudCover!=null?Math.round(w.cloudCover):'--'; ce.textContent=p==='--'?'--':p+'%'; ce.style.color=w.cloudCover<=20?'#00ff88':w.cloudCover<=50?'#ffcc00':'#ff4444'; }
   var lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
   var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
-  var coords = document.getElementById('ar-coords');
-  if (coords && !isNaN(lat) && !isNaN(lon)) {
-    coords.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
-  } else if (coords && engineReady && stel && stel.core && stel.core.observer) {
-    coords.textContent = ((stel.core.observer.latitude||0)*180/Math.PI).toFixed(4) + ', ' + ((stel.core.observer.longitude||0)*180/Math.PI).toFixed(4);
-  }
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(h, lat, lon);
   var dbg = document.getElementById('ar-debug');
   var engLat = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.latitude * 180 / Math.PI : NaN;
   var engLon = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.longitude * 180 / Math.PI : NaN;
-  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 alt:' + smoothAltitude.toFixed(1) + '\xB0 | loc:' + (isNaN(engLat)?'--':engLat.toFixed(2)+','+engLon.toFixed(2)) + ' | eng:' + (engineReady?'OK':'loading');
-  bortleLookup(lat, lon, h);
+  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 alt:' + smoothAltitude.toFixed(1) + '\xB0 | loc:' + (isNaN(engLat)?'--':engLat.toFixed(2)+','+engLon.toFixed(2)) + ' | ' + formatTimeOffset(timeOffsetHours);
   animFrame = requestAnimationFrame(renderLoop);
-}
-
-var lastBortle = 0, cachedBortle = null;
-async function bortleLookup(lat, lon, hdg) {
-  if (isNaN(lat) || isNaN(lon)) return;
-  if (Date.now() - lastBortle < 30000) return;
-  lastBortle = Date.now();
-  try {
-    var R=6371,d=15/R,p1=lat*Math.PI/180,l1=lon*Math.PI/180,t=hdg*Math.PI/180;
-    var p2=Math.asin(Math.sin(p1)*Math.cos(d)+Math.cos(p1)*Math.sin(d)*Math.cos(t));
-    var l2=l1+Math.atan2(Math.sin(t)*Math.sin(d)*Math.cos(p1),Math.cos(d)-Math.sin(p1)*Math.sin(p2));
-    var r=await fetch('/api/bortle?lat='+((p2*180/Math.PI)).toFixed(4)+'&lon='+((l2*180/Math.PI)).toFixed(4));
-    if(r.ok) cachedBortle=await r.json();
-  }catch(e){}
-  var el=overlayEl && overlayEl.querySelector('#ar-bortle');
-  if(el&&cachedBortle){var b=cachedBortle.bortle||'?';el.textContent='B'+b;el.style.color=b<=3?'#00ff88':b<=5?'#ffcc00':'#ff4444';}
 }

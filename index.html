@@ -859,7 +859,6 @@
     <!-- AR Mode Overlay -->
     <div id="ar-overlay" class="ar-overlay hidden">
       <video id="ar-video" autoplay playsinline muted></video>
-      <!-- Stellarium engine canvas -->
       <canvas id="ar-sky" class="ar-sky-container"></canvas>
       <div class="ar-hud">
         <!-- Center compass rose -->
@@ -882,56 +881,26 @@
         </div>
         <!-- Center crosshair -->
         <div class="ar-crosshair">➕</div>
-        <!-- Bortle & cloud info cards -->
-        <div class="ar-data-cards">
-          <div class="ar-data-card" id="ar-bortle-card">
-            <span class="ar-data-label">🌌 Bortle</span>
-            <span class="ar-data-value" id="ar-bortle">--</span>
-          </div>
-          <div class="ar-data-card" id="ar-cloud-card">
-            <span class="ar-data-label">☁️ Cloud</span>
-            <span class="ar-data-value" id="ar-cloud-pct">--</span>
-          </div>
-        </div>
-        <!-- Info panel -->
-        <div class="ar-info">
-          <div class="ar-info-row">
-            <span>🧭</span><span id="ar-heading">0° S</span>
-          </div>
-          <div class="ar-info-row">
-            <span>📐</span><span id="ar-altitude">45°</span>
-          </div>
-          <div class="ar-info-row" style="font-size:0.7rem;opacity:0.7;">
-            <span>📍</span><span id="ar-coords">--</span>
-          </div>
-        </div>
-        <!-- Sliders: opacity & time -->
-        <div class="ar-sliders" id="ar-sliders">
+        <!-- Controls: sliders + toggles -->
+        <div class="ar-controls" id="ar-controls">
           <div class="ar-slider-row">
-            <span class="ar-slider-label">🌫️ Opacity</span>
-            <input type="range" id="ar-opacity" min="20" max="100" value="92" class="ar-slider" />
-            <span class="ar-slider-val" id="ar-opacity-val">92%</span>
+            <input type="range" id="ar-opacity" min="20" max="100" value="92" />
+            <span class="ar-ctrl-val" id="ar-opacity-val">92%</span>
           </div>
           <div class="ar-slider-row">
-            <span class="ar-slider-label">🕐 Time</span>
-            <input type="range" id="ar-time" min="-168" max="168" value="0" step="1" class="ar-slider" />
-            <span class="ar-slider-val" id="ar-time-val">now</span>
+            <input type="range" id="ar-time" min="-168" max="168" value="0" step="1" />
+            <span class="ar-ctrl-val" id="ar-time-val">now</span>
           </div>
-          <div class="ar-slider-row" style="justify-content:center;">
-            <span id="ar-time-detail" style="font-size:0.6rem;color:rgba(255,255,255,0.4);"></span>
-          </div>
-          <div class="ar-slider-row" style="justify-content:center;gap:8px;margin-top:4px;">
-            <button id="ar-btn-atmo" class="ar-toggle-btn">🌅 Atmo</button>
-            <button id="ar-btn-ground" class="ar-toggle-btn">⛰️ Ground</button>
-            <button id="ar-btn-grid" class="ar-toggle-btn">📐 Grid</button>
+          <div class="ar-toggle-row">
+            <button id="ar-btn-atmo" class="ar-toggle-btn">🌅</button>
+            <button id="ar-btn-ground" class="ar-toggle-btn active">⛰️</button>
+            <button id="ar-btn-grid" class="ar-toggle-btn">📐</button>
           </div>
         </div>
         <!-- Close button -->
         <button class="ar-close-btn" id="ar-close-btn">✕</button>
-        <!-- Hint -->
-        <div class="ar-hint">Point your phone at the sky</div>
-        <!-- Debug: raw IMU values -->
-        <div id="ar-debug" style="position:absolute;bottom:18px;left:10px;right:10px;color:#0f0;font-size:9px;font-family:monospace;text-align:center;background:rgba(0,0,0,0.5);padding:4px;border-radius:4px;pointer-events:none;"></div>
+        <!-- Debug text -->
+        <div id="ar-debug"></div>
       </div>
     </div>
 

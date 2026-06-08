@@ -2254,28 +2254,6 @@ footer a:hover {
   text-shadow: 0 0 10px rgba(0,255,136,0.5);
 }
 
-/* Info panel */
-.ar-info {
-  position: absolute;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 16px;
-  background: rgba(0,0,0,0.7);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 20px;
-  padding: 8px 16px;
-}
-.ar-info-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.9rem;
-  color: #fff;
-  font-family: monospace;
-}
-
 /* Close button */
 .ar-close-btn {
   position: absolute;
@@ -2295,17 +2273,6 @@ footer a:hover {
   justify-content: center;
 }
 
-/* Hint */
-.ar-hint {
-  position: absolute;
-  top: 160px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(255,255,255,0.5);
-  font-size: 0.78rem;
-  text-align: center;
-}
-
 /* Stellarium engine canvas */
 .ar-sky-container {
   position: absolute;
@@ -2318,68 +2285,24 @@ footer a:hover {
   height: 100%;
 }
 
-/* Bortle & cloud data cards */
-.ar-data-cards {
+/* ─── AR Controls (bottom) ─── */
+.ar-controls {
   position: absolute;
-  top: 90px;
-  right: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ar-data-card {
-  background: rgba(0,0,0,0.65);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
-  padding: 6px 12px;
-  text-align: center;
-  min-width: 64px;
-}
-.ar-data-label {
-  display: block;
-  font-size: 0.6rem;
-  color: rgba(255,255,255,0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.ar-data-value {
-  display: block;
-  font-size: 1.1rem;
-  font-weight: 700;
-  font-family: monospace;
-  color: #fff;
-}
-
-/* ─── AR Sliders (opacity + time) ─── */
-.ar-sliders {
-  position: absolute;
-  bottom: 50px;
+  bottom: 40px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: rgba(0,0,0,0.65);
+  background: rgba(0,0,0,0.7);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px;
-  padding: 8px 14px;
-  min-width: 200px;
-  max-width: 280px;
+  padding: 6px 10px;
   pointer-events: auto;
+  z-index: 20;
+  min-width: 180px;
 }
-.ar-slider-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.ar-slider-label {
-  font-size: 0.65rem;
-  color: rgba(255,255,255,0.55);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  min-width: 44px;
-}
-.ar-slider {
+.ar-controls input[type=range] {
   flex: 1;
   -webkit-appearance: none;
   appearance: none;
@@ -2387,37 +2310,35 @@ footer a:hover {
   background: rgba(255,255,255,0.15);
   border-radius: 2px;
   outline: none;
+  margin: 2px 0;
 }
-.ar-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--accent-cyan);
-  border: 2px solid rgba(0,0,0,0.3);
-  cursor: pointer;
+.ar-controls input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #00d4ff; border: 2px solid rgba(0,0,0,0.3); cursor: pointer;
 }
-.ar-slider-val {
-  font-size: 0.7rem;
-  font-family: monospace;
-  color: rgba(255,255,255,0.8);
-  min-width: 36px;
-  text-align: right;
+.ar-ctrl-val {
+  font-size: 0.65rem; font-family: monospace;
+  color: rgba(255,255,255,0.8); min-width: 32px; text-align: right;
+}
+.ar-toggle-row {
+  display: flex; justify-content: center; gap: 6px; margin-top: 2px;
 }
 .ar-toggle-btn {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 8px;
-  color: rgba(255,255,255,0.5);
-  font-size: 0.6rem;
-  padding: 4px 8px;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: all 0.2s;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px; color: rgba(255,255,255,0.5);
+  font-size: 0.75rem; padding: 3px 8px; cursor: pointer;
+  pointer-events: auto; position: relative; z-index: 21;
 }
 .ar-toggle-btn.active {
-  background: rgba(0,255,136,0.15);
-  border-color: rgba(0,255,136,0.4);
-  color: #00ff88;
+  background: rgba(0,255,136,0.15); border-color: rgba(0,255,136,0.4); color: #00ff88;
+}
+
+/* Debug text */
+#ar-debug {
+  position: absolute; bottom: 8px; left: 8px; right: 8px;
+  color: #0f0; font-size: 8px; font-family: monospace; text-align: center;
+  background: rgba(0,0,0,0.5); padding: 3px 6px; border-radius: 4px;
+  pointer-events: none; z-index: 5;
 }

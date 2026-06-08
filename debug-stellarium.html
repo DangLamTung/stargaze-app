@@ -329,7 +329,7 @@
             document.getElementById('pitchVal').textContent = Math.round(alt) + '°';
 
             if (engineReady) {
-              stel.core.observer.yaw = hdg * Math.PI / 180;
+              stel.core.observer.yaw = -hdg * Math.PI / 180;
               stel.core.observer.pitch = -alt * Math.PI / 180;
             }
             updateDebug();
@@ -364,7 +364,7 @@
         document.getElementById('pitchVal').textContent = Math.round(alt) + '°';
 
         if (engineReady) {
-          stel.core.observer.yaw = raw * Math.PI / 180;
+          stel.core.observer.yaw = -raw * Math.PI / 180;
           stel.core.observer.pitch = -alt * Math.PI / 180;
         }
         updateDebug();

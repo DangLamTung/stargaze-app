@@ -17,7 +17,7 @@ let sensorReady = false;
 let engineReady = false;
 let initLat = 0, initLon = 0;
 let skyOpacity = 0.92;
-let timeOffsetMinutes = 0;
+let timeOffsetHours = 0;
 
 export function isARActive() { return arActive; }
 
@@ -206,7 +206,7 @@ export function stopARMode() {
   overlayEl = null;
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   skyOpacity = 0.92;
-  timeOffsetMinutes = 0;
+  timeOffsetHours = 0;
   stopSensor();
 }
 
@@ -224,24 +224,33 @@ function setupSliders() {
   }
   var tmSlider = document.getElementById('ar-time');
   var tmVal = document.getElementById('ar-time-val');
+  var tmDetail = document.getElementById('ar-time-detail');
   if (tmSlider && tmVal) {
-    tmSlider.value = timeOffsetMinutes;
-    tmVal.textContent = formatTimeOffset(timeOffsetMinutes);
+    tmSlider.value = timeOffsetHours;
+    updateTimeDisplay();
     tmSlider.addEventListener('input', function() {
-      timeOffsetMinutes = parseInt(this.value);
-      tmVal.textContent = formatTimeOffset(timeOffsetMinutes);
+      timeOffsetHours = parseInt(this.value);
+      updateTimeDisplay();
     });
+  }
+
+  function updateTimeDisplay() {
+    tmVal.textContent = formatTimeOffset(timeOffsetHours);
+    if (tmDetail) {
+      var d = new Date(Date.now() + timeOffsetHours * 3600000);
+      tmDetail.textContent = d.toLocaleString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+    }
   }
 }
 
-function formatTimeOffset(minutes) {
-  if (minutes === 0) return 'now';
-  var sign = minutes > 0 ? '+' : '';
-  var h = Math.floor(Math.abs(minutes) / 60);
-  var m = Math.abs(minutes) % 60;
-  if (h === 0) return sign + m + 'm';
-  if (m === 0) return sign + h + 'h';
-  return sign + h + 'h' + m + 'm';
+function formatTimeOffset(hours) {
+  if (hours === 0) return 'now';
+  var sign = hours > 0 ? '+' : '';
+  var d = Math.floor(Math.abs(hours) / 24);
+  var h = Math.abs(hours) % 24;
+  if (d > 0 && h === 0) return sign + d + 'd';
+  if (d > 0) return sign + d + 'd' + h + 'h';
+  return sign + h + 'h';
 }
 
 function renderLoop() {
@@ -252,7 +261,7 @@ function renderLoop() {
     stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
     // Apply time offset from current real time (not frozen base)
     if (typeof stel.date2MJD === 'function') {
-      stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetMinutes / (24 * 60);
+      stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetHours / 24;
     }
   }
   // Apply opacity

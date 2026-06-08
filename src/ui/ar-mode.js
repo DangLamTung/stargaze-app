@@ -234,6 +234,35 @@ function setupSliders() {
     });
   }
 
+  // Toggle buttons — match engine state
+  setupToggle('ar-btn-atmo', 'atmosphere', false);
+  setupToggle('ar-btn-ground', 'landscapes', true);
+  setupToggle('ar-btn-grid', 'lines', {sub: 'equatorial', def: false});
+
+  function setupToggle(id, prop, opts) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    var defOn = (typeof opts === 'boolean') ? opts : (opts && opts.def);
+    if (defOn) btn.classList.add('active');
+    btn.addEventListener('click', function() {
+      btn.classList.toggle('active');
+      var on = btn.classList.contains('active');
+      if (engineReady && stel && stel.core) {
+        var obj = stel.core[prop];
+        if (obj) {
+          if (opts && opts.sub) {
+            if (obj[opts.sub]) obj[opts.sub].visible = on;
+          } else {
+            obj.visible = on;
+          }
+        }
+        if (prop === 'lines' && stel.core.lines && stel.core.lines.azimuthal) {
+          stel.core.lines.azimuthal.visible = on;
+        }
+      }
+    });
+  }
+
   function updateTimeDisplay() {
     tmVal.textContent = formatTimeOffset(timeOffsetHours);
     if (tmDetail) {

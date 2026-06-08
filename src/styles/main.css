@@ -2405,3 +2405,19 @@ footer a:hover {
   min-width: 36px;
   text-align: right;
 }
+.ar-toggle-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.6rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s;
+}
+.ar-toggle-btn.active {
+  background: rgba(0,255,136,0.15);
+  border-color: rgba(0,255,136,0.4);
+  color: #00ff88;
+}

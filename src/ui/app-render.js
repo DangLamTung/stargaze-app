@@ -186,7 +186,5 @@ export function updateMapView(state) {
 export async function initSkyMapView(state) {
   const loc = state.location;
   setSkyContext({ latitude: loc.latitude, longitude: loc.longitude, date: null });
-  await initSkyMap('sky-map-container', loc.latitude, loc.longitude, null);
-  const link = document.getElementById('stellarium-link');
-  if (link) link.href = getStellariumUrl(loc.latitude, loc.longitude, 0);
+  await initSkyMap('panel-sky', loc.latitude, loc.longitude, null);
 }

@@ -941,13 +941,25 @@ async function handleReminderSubmit(e) {
     sendEmailReminder(email, night, state.location.name + ', ' + state.location.country);
     showToast('Opening email client', 'success');
   } else if (method === 'notification') {
-    const ok = await requestNotificationPermission();
+    if (!('Notification' in window)) {
+      showToast('Notifications not supported on this browser', 'error');
+      closeReminderModal();
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      showToast('Notifications blocked. Enable in Chrome → Site Settings → Notifications', 'error');
+      closeReminderModal();
+      return;
+    }
+    var ok = await requestNotificationPermission();
     if (ok) {
       showNotification('Reminder Set', {
         body: night.rating + ' night on ' + new Date(night.date).toLocaleDateString(),
       });
       showToast('Notification enabled!', 'success');
-    } else showToast('Notification denied', 'error');
+    } else {
+      showToast('Notification denied — check browser site settings', 'error');
+    }
   }
   closeReminderModal();
 }

@@ -266,8 +266,8 @@ function renderLoop() {
   }
   // Apply opacity
   if (canvasEl) canvasEl.style.opacity = skyOpacity;
-  var ring = overlayEl && overlayEl.querySelector('#ar-compass-ring');
-  if (ring) ring.style.transform = 'rotate(' + (-h) + 'deg)';
+  var ring = overlayEl && overlayEl.querySelector('.ar-compass-face');
+  if (ring) ring.style.transform = 'rotate(' + h + 'deg)';
   var hl = overlayEl && overlayEl.querySelector('#ar-heading');
   if (hl) { var dirs=['N','NE','E','SE','S','SW','W','NW']; hl.textContent=Math.round(h)+'\xB0 '+dirs[Math.round(h/45)%8]+' / '+Math.round(smoothAltitude)+'\xB0'; }
   var al = overlayEl && overlayEl.querySelector('#ar-altitude');

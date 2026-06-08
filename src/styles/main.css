@@ -1889,41 +1889,69 @@ footer a:hover {
 }
 
 @media (max-width: 900px) {
-  /* Ultra-compact header */
+  /* Single-row compact header */
   .floating-header {
     top: 4px;
     width: calc(100% - 8px);
-    padding: 4px 8px;
-    gap: 4px;
+    padding: 5px 8px;
+    gap: 6px;
     border-radius: var(--radius-md);
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .logo {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .icon-btn {
     width: 28px;
     height: 28px;
     font-size: 0.8rem;
+    flex-shrink: 0;
   }
 
   .search-container {
-    order: 3;
-    width: 100%;
-    min-width: 100%;
-    margin-top: 4px;
+    flex: 1;
+    min-width: 0;
+    order: 0;
+    margin-top: 0;
   }
 
   .search-container input {
-    padding: 6px 8px;
-    font-size: 0.8rem;
-    height: 32px;
+    padding: 5px 8px;
+    font-size: 0.75rem;
+    height: 28px;
+  }
+
+  .search-container::before {
+    left: 8px;
+    font-size: 0.65rem;
+    top: 48%;
+  }
+
+  .action-btn {
+    padding: 5px 8px;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+  .action-btn .btn-icon { font-size: 0.8rem; }
+
+  #favorite-btn {
+    font-size: 1rem !important;
+    padding: 0 !important;
+    flex-shrink: 0;
+  }
+
+  .header-actions {
+    gap: 4px;
+    flex-shrink: 0;
   }
 
   .favorites-list {
-    top: 70px;
+    top: 42px;
     width: calc(100% - 8px);
     gap: 4px;
     padding: 4px 8px 4px 8px;
@@ -1995,20 +2023,24 @@ footer a:hover {
     .floating-header {
       top: 2px;
       width: calc(100% - 4px);
-      padding: 3px 6px;
-      gap: 2px;
+      padding: 3px 5px;
+      gap: 3px;
+      flex-wrap: nowrap;
     }
-    .logo { font-size: 0.75rem; letter-spacing: -0.5px; }
-    .icon-btn { width: 24px; height: 24px; font-size: 0.7rem; }
-    .action-btn { padding: 4px 6px; font-size: 0.65rem; }
-    .search-container { margin-top: 2px; }
-    .search-container input { padding: 4px 6px 4px 26px; font-size: 0.72rem; height: 28px; }
-    .search-container::before { left: 8px; font-size: 0.65rem; top: 48%; }
-    .favorites-list { margin-top: 4px; gap: 4px; }
-    .favorite-card { height: 28px; padding: 2px 8px 2px 2px; border-radius: 14px; }
-    .favorite-card-overlay { font-size: 0.68rem; max-width: 80px; }
-    .floating-controls { top: 90px; max-width: 170px; }
-    .leaflet-top.leaflet-left { top: 90px; }
+    .logo { font-size: 0.7rem; letter-spacing: -0.5px; flex-shrink: 0; }
+    .icon-btn { width: 22px; height: 22px; font-size: 0.65rem; flex-shrink: 0; }
+    .action-btn { padding: 3px 5px; font-size: 0.6rem; flex-shrink: 0; }
+    .action-btn .btn-icon { font-size: 0.7rem; }
+    .search-container { flex: 1; min-width: 0; margin-top: 0; order: 0; }
+    .search-container input { padding: 3px 5px 3px 22px; font-size: 0.65rem; height: 24px; }
+    .search-container::before { left: 6px; font-size: 0.55rem; top: 48%; }
+    #favorite-btn { font-size: 0.9rem !important; padding: 0 !important; }
+    .favorites-list { top: 36px; width: calc(100% - 4px); }
+    .favorite-card { height: 24px; padding: 2px 6px 2px 2px; border-radius: 12px; }
+    .favorite-card-overlay { font-size: 0.6rem; max-width: 70px; }
+    .favorite-card img, .favorite-card-fallback { width: 20px; height: 20px; }
+    .floating-controls { top: 42px; max-width: 160px; }
+    .leaflet-top.leaflet-left { top: 42px; }
   }
 
   /* Right-side: compact with toggle */
@@ -2152,29 +2184,64 @@ footer a:hover {
   pointer-events: none;
 }
 
-/* Compass ring — rotates with heading */
+/* Compass rose — center, rotates with heading */
 .ar-compass {
   position: absolute;
-  top: 20px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  width: 120px;
-  height: 120px;
-  border: 2px solid rgba(0, 255, 136, 0.4);
+  transform: translate(-50%, -50%);
+  width: 180px;
+  height: 180px;
+  pointer-events: none;
+}
+.ar-compass-face {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
+  border: 2px solid rgba(0, 255, 136, 0.3);
+  background: radial-gradient(circle, rgba(0,20,10,0.5) 0%, rgba(0,30,15,0.3) 60%, rgba(0,0,0,0.1) 100%);
+  box-shadow: 0 0 30px rgba(0,255,136,0.08), inset 0 0 20px rgba(0,255,136,0.03);
+  position: relative;
   transition: transform 0.1s linear;
 }
-.ar-compass-n, .ar-compass-e, .ar-compass-s, .ar-compass-w {
+.ar-compass-tick {
   position: absolute;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #00ff88;
-  text-shadow: 0 0 6px rgba(0,255,136,0.6);
+  top: 0; left: 50%;
+  width: 2px; height: 100%;
+  transform-origin: center center;
 }
-.ar-compass-n { top: 4px; left: 50%; transform: translateX(-50%); }
-.ar-compass-e { right: 4px; top: 50%; transform: translateY(-50%); }
-.ar-compass-s { bottom: 4px; left: 50%; transform: translateX(-50%); }
-.ar-compass-w { left: 4px; top: 50%; transform: translateY(-50%); }
+.ar-compass-tick::before {
+  content: '';
+  position: absolute;
+  top: 8px; left: 50%;
+  transform: translateX(-50%);
+  width: 1px; height: 14px;
+  background: rgba(0,255,136,0.5);
+}
+.ar-compass-tick:nth-child(3n+1)::before { /* 0,90,180,270 */
+  height: 20px; width: 1.5px;
+  background: rgba(0,255,136,0.8);
+}
+.ar-compass-tick span {
+  position: absolute;
+  top: 2px; left: 50%;
+  transform: translateX(-50%) rotate(var(--r,0deg));
+  font-size: 0.7rem; font-weight: 700;
+  color: #00ff88;
+  text-shadow: 0 0 8px rgba(0,255,136,0.5);
+}
+/* Needle pointing North (fixed, doesn't rotate with face) */
+.ar-compass-needle {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 22px solid #ff4444;
+  margin-top: -85px;
+  filter: drop-shadow(0 0 4px rgba(255,68,68,0.6));
+}
 
 /* Center crosshair */
 .ar-crosshair {

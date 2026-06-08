@@ -74,12 +74,25 @@
 
     async function requestPerm() {
       try {
+        // Try promise-based API (modern)
         var result = await Notification.requestPermission();
         log('requestPermission() returned: ' + result);
         updateStatus();
       } catch(e) {
-        log('requestPermission ERROR: ' + e.message);
-        updateStatus();
+        // Fallback to callback-based API (older browsers)
+        log('Promise API failed: ' + e.message + ', trying callback...');
+        try {
+          Notification.requestPermission(function(result) {
+            log('requestPermission(callback) returned: ' + result);
+            updateStatus();
+          });
+        } catch(e2) {
+          log('Callback API also failed: ' + e2.message);
+        }
+      }
+      if (Notification.permission === 'denied') {
+        log('TIP: On Android Chrome, go to Site Settings → Notifications → Allow');
+        log('     Tap the lock icon in the address bar to find it.');
       }
     }
 

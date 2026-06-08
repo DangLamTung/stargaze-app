@@ -164,8 +164,8 @@ export async function startARMode(latitude, longitude, onStop) {
           // Labels
           if (stel.core.stars) stel.core.stars.hints_visible = true;
           if (stel.core.planets) stel.core.planets.hints_visible = true;
-          stel.core.observer.latitude = latitude;
-          stel.core.observer.longitude = longitude;
+          stel.core.observer.latitude = latitude * Math.PI / 180;
+          stel.core.observer.longitude = longitude * Math.PI / 180;
           stel.core.observer.pitch = 45 * Math.PI / 180;
           stel.core.observer.yaw = 0;
           console.log('[AR] Catalogs & observer set');
@@ -174,8 +174,8 @@ export async function startARMode(latitude, longitude, onStop) {
       });
     } else if (engineReady && stel) {
       // Already initialized from a previous AR session
-      stel.core.observer.latitude = latitude;
-      stel.core.observer.longitude = longitude;
+      stel.core.observer.latitude = latitude * Math.PI / 180;
+      stel.core.observer.longitude = longitude * Math.PI / 180;
       stel.core.observer.pitch = 45 * Math.PI / 180;
       stel.core.observer.yaw = 0;
       if (typeof stel.date2MJD === 'function') stel.core.observer.utc = stel.date2MJD(new Date());
@@ -266,12 +266,12 @@ function renderLoop() {
   if (coords && !isNaN(lat) && !isNaN(lon)) {
     coords.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
   } else if (coords && engineReady && stel && stel.core && stel.core.observer) {
-    coords.textContent = (stel.core.observer.latitude||0).toFixed(4) + ', ' + (stel.core.observer.longitude||0).toFixed(4);
+    coords.textContent = ((stel.core.observer.latitude||0)*180/Math.PI).toFixed(4) + ', ' + ((stel.core.observer.longitude||0)*180/Math.PI).toFixed(4);
   }
   if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(sensorToCamera(h), lat, lon);
   var dbg = document.getElementById('ar-debug');
-  var engLat = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.latitude : NaN;
-  var engLon = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.longitude : NaN;
+  var engLat = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.latitude * 180 / Math.PI : NaN;
+  var engLon = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.longitude * 180 / Math.PI : NaN;
   if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + sensorToCamera(h).toFixed(1) + '\xB0 alt:' + smoothAltitude.toFixed(1) + '\xB0 | loc:' + (isNaN(engLat)?'--':engLat.toFixed(2)+','+engLon.toFixed(2)) + ' | eng:' + (engineReady?'OK':'loading');
   bortleLookup(lat, lon, h);
   animFrame = requestAnimationFrame(renderLoop);

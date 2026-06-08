@@ -569,6 +569,14 @@ function init() {
     $('map-layers-control')?.classList.add('collapsed');
   }
 
+  // Load default satellite cloud layer
+  setTimeout(function() {
+    var sel = $('weather-layer-select');
+    if (sel && sel.value === 'satellite') {
+      handleWeatherLayerChange({ target: { value: 'satellite' } });
+    }
+  }, 500);
+
   // Map controls toggle button
   $('controls-toggle-btn')?.addEventListener('click', () => {
     $('map-layers-control')?.classList.toggle('collapsed');

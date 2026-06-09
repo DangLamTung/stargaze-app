@@ -874,15 +874,16 @@ function startForecastWatch() {}
 function stopForecastWatch() {}
 
 async function checkAndNotifyForecast() {
-  if (!state.location || !state.scores?.length) return;
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  var goodNights = state.scores.filter(function(s) { return s.score >= 60; });
-  if (!goodNights.length) return;
-  var best = goodNights[0];
-  var dateStr = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  var goodDays = state.scores.filter(function(s) { return s.score >= 50; }).length;
-  var body = best.rating + ' (' + best.score + '/100) — ' + dateStr + ' · ☁️ ' + best.avgCloudCover + '% · 🌡️ ' + best.tempMin + '°–' + best.tempMax + '°C · ' + goodDays + ' good nights in 7 days · 📍 ' + state.location.name;
-  sendNotification('⭐ Good stargazing coming up!', body, 'stargaze-' + best.date);
+  if (!state.location || !('Notification' in window) || Notification.permission !== 'granted') return;
+  var cur = (state.weatherData && state.weatherData.current) ? state.weatherData.current : {};
+  var summary = [
+    '☁️ Cloud ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?'),
+    '🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?'),
+    '💧 Hum ' + (cur.humidity != null ? Math.round(cur.humidity) + '%' : '?'),
+    '👁️ Vis ' + (cur.visibility != null ? (cur.visibility/1000).toFixed(1) + 'km' : '?'),
+    '🌬️ Wind ' + (cur.windSpeed != null ? Math.round(cur.windSpeed) + 'm/s' : '?')
+  ].join(' · ');
+  sendNotification('📍 ' + state.location.name, summary, 'now-' + state.location.name.replace(/\s/g,'-'));
 }
 // ─── Favorites watcher ───
 window._favScores = {};
@@ -893,37 +894,29 @@ function stopFavoritesWatch() {}
 async function checkAllFavorites() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-  // Build list: current location + all favorites
   var locs = [];
-  if (state.location) locs.push({ name: state.location.name, latitude: state.location.latitude, longitude: state.location.longitude });
+  if (state.location) locs.push({ name: state.location.name, lat: state.location.latitude, lon: state.location.longitude });
   var favs = getFavorites();
   for (var i = 0; i < favs.length; i++) {
-    var fav = favs[i];
-    if (state.location && Math.abs(fav.latitude - state.location.latitude) < 0.01 && Math.abs(fav.longitude - state.location.longitude) < 0.01) continue;
-    locs.push({ name: fav.name, latitude: fav.latitude, longitude: fav.longitude });
+    var f = favs[i];
+    if (state.location && Math.abs(f.latitude - state.location.latitude) < 0.01 && Math.abs(f.longitude - state.location.longitude) < 0.01) continue;
+    locs.push({ name: f.name, lat: f.latitude, lon: f.longitude });
   }
   if (!locs.length) return;
 
   for (var j = 0; j < locs.length; j++) {
     var loc = locs[j];
     try {
-      var wd = await getWeatherData(loc.latitude, loc.longitude, 'auto');
-      var bortle = await estimateBortleClass(loc.latitude, loc.longitude);
-      var scores = calculateAllScores(wd, bortle, wd.current?.cloudCover ?? null);
-      var best = findBestNight(scores);
-      if (best && best.score >= 50) {
-        window._favScores[loc.name] = { score: best.score, rating: best.rating, date: best.date };
-        var goodDays = scores.filter(function(s) { return s.score >= 50; }).length;
-        var emoji = best.score >= 80 ? '🌟' : best.score >= 60 ? '⭐' : '🌙';
-        var summary = [
-          'Best: ' + best.score + '/100 ' + best.rating,
-          '📅 ' + new Date(best.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),
-          '☁️ ' + best.avgCloudCover + '% cloud · ' + best.moonPhaseIcon + ' ' + best.moonPhaseName,
-          '🌡️ ' + best.tempMin + '°–' + best.tempMax + '°C',
-          '📊 ' + goodDays + ' good nights in 7-day forecast'
-        ].join(' · ');
-        sendNotification(emoji + ' ' + loc.name, summary, 'loc-' + loc.name.replace(/\s/g,'-'));
-      }
+      var wd = await getWeatherData(loc.lat, loc.lon, 'auto');
+      var cur = wd.current || {};
+      var summary = [
+        '☁️ Cloud ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?'),
+        '🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?'),
+        '💧 Hum ' + (cur.humidity != null ? Math.round(cur.humidity) + '%' : '?'),
+        '👁️ Vis ' + (cur.visibility != null ? (cur.visibility/1000).toFixed(1) + 'km' : '?'),
+        '🌬️ Wind ' + (cur.windSpeed != null ? Math.round(cur.windSpeed) + 'm/s' : '?')
+      ].join(' · ');
+      sendNotification('📍 ' + loc.name, summary, 'loc-' + loc.name.replace(/\s/g,'-'));
     } catch (e) { console.warn('Check failed for ' + loc.name + ':', e); }
   }
   renderFavoritesList();

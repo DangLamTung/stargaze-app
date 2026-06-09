@@ -874,16 +874,18 @@ function startForecastWatch() {}
 function stopForecastWatch() {}
 
 async function checkAndNotifyForecast() {
-  if (!state.location || !('Notification' in window) || Notification.permission !== 'granted') return;
-  var cur = (state.weatherData && state.weatherData.current) ? state.weatherData.current : {};
-  var summary = [
-    '☁️ Cloud ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?'),
-    '🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?'),
-    '💧 Hum ' + (cur.humidity != null ? Math.round(cur.humidity) + '%' : '?'),
-    '👁️ Vis ' + (cur.visibility != null ? (cur.visibility/1000).toFixed(1) + 'km' : '?'),
-    '🌬️ Wind ' + (cur.windSpeed != null ? Math.round(cur.windSpeed) + 'm/s' : '?')
-  ].join(' · ');
-  sendNotification('📍 ' + state.location.name, summary, 'now-' + state.location.name.replace(/\s/g,'-'));
+  if (!state.location || !state.weatherData || !('Notification' in window) || Notification.permission !== 'granted') return;
+  var cur = state.weatherData.current || {};
+  try {
+    var bortle = await estimateBortleClass(state.location.latitude, state.location.longitude).catch(function(){ return 5; });
+    var scores = calculateAllScores(state.weatherData, bortle, cur.cloudCover ?? null);
+    var days = scores.slice(0, 7).map(function(s) {
+      var d = new Date(s.date).toLocaleDateString('en-US',{weekday:'short'});
+      return d + ' ' + s.score;
+    }).join(' ');
+    var summary = '☁️ ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?') + ' · 🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?') + ' · ' + days;
+    sendNotification('📍 ' + state.location.name, summary, 'now-' + state.location.name.replace(/\s/g,'-'));
+  } catch(e) { console.warn('Forecast notify failed:', e); }
 }
 // ─── Favorites watcher ───
 window._favScores = {};
@@ -909,13 +911,13 @@ async function checkAllFavorites() {
     try {
       var wd = await getWeatherData(loc.lat, loc.lon, 'auto');
       var cur = wd.current || {};
-      var summary = [
-        '☁️ Cloud ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?'),
-        '🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?'),
-        '💧 Hum ' + (cur.humidity != null ? Math.round(cur.humidity) + '%' : '?'),
-        '👁️ Vis ' + (cur.visibility != null ? (cur.visibility/1000).toFixed(1) + 'km' : '?'),
-        '🌬️ Wind ' + (cur.windSpeed != null ? Math.round(cur.windSpeed) + 'm/s' : '?')
-      ].join(' · ');
+      var bortle = await estimateBortleClass(loc.lat, loc.lon).catch(function(){ return 5; });
+      var scores = calculateAllScores(wd, bortle, cur.cloudCover ?? null);
+      var days = scores.slice(0, 7).map(function(s) {
+        var d = new Date(s.date).toLocaleDateString('en-US',{weekday:'short'});
+        return d + ' ' + s.score;
+      }).join(' ');
+      var summary = '☁️ ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?') + ' · 🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?') + ' · ' + days;
       sendNotification('📍 ' + loc.name, summary, 'loc-' + loc.name.replace(/\s/g,'-'));
     } catch (e) { console.warn('Check failed for ' + loc.name + ':', e); }
   }

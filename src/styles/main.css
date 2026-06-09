@@ -2299,7 +2299,7 @@ footer a:hover {
   border-radius: 12px;
   padding: 6px 10px;
   pointer-events: auto;
-  z-index: 20;
+  z-index: 30;
   min-width: 180px;
 }
 .ar-controls input[type=range] {

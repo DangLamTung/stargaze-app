@@ -61,7 +61,7 @@ import {
 // ─── State ───
 const state = { location: null, weatherData: null, scores: null, bestNight: null, loading: false, bortleClass: 5 };
 let refreshTimer = null;
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+let refreshIntervalMs = 5 * 60 * 1000; // default 5 min, updated from settings
 
 const $ = id => document.getElementById(id);
 let cloudAnimating = false;
@@ -272,6 +272,10 @@ $('settings-btn')?.addEventListener('click', async () => {
       const data = await res.json();
       const el = $('settings-interval');
       if (el) el.value = data.interval;
+      if (data.interval) {
+        refreshIntervalMs = parseInt(data.interval) * 1000;
+        restartRefresh();
+      }
     }
   } catch (err) {
     console.error('Failed to load settings', err);
@@ -291,6 +295,8 @@ $('save-settings-btn')?.addEventListener('click', async () => {
       body: JSON.stringify({ interval: parseInt(interval) }),
     });
     if (res.ok) {
+      refreshIntervalMs = parseInt(interval) * 1000;
+      restartRefresh();
       showToast('Settings saved', 'success');
       $('settings-modal').classList.remove('visible');
     }
@@ -841,7 +847,7 @@ function startNowRefresh() {
     } catch (err) {
       console.warn('Now-score refresh failed:', err);
     }
-  }, REFRESH_INTERVAL_MS);
+  }, refreshIntervalMs);
 }
 function stopNowRefresh() {
   if (refreshTimer) {

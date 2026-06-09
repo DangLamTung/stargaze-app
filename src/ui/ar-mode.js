@@ -47,8 +47,8 @@ function quatToHdg(q) {
 
 function quatToAlt(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
-  // Elevation of +Z. Negated: engine pitch convention.
-  return -Math.asin(Math.max(-1, Math.min(1, 1 - 2*(x*x + y*y)))) * 180 / Math.PI;
+  // Elevation of +Z. Up=positive, engine wants up=negative.
+  return Math.asin(Math.max(-1, Math.min(1, 1 - 2*(x*x + y*y)))) * 180 / Math.PI;
 }
 
 function angleDelta(a, b) {
@@ -287,7 +287,7 @@ function renderLoop() {
   var h = ((smoothHeading % 360) + 360) % 360;
   if (engineReady && stel && stel.core && stel.core.observer) {
     stel.core.observer.yaw = (-h) * Math.PI / 180;
-    stel.core.observer.pitch = -smoothAltitude * Math.PI / 180;
+    stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
     if (typeof stel.date2MJD === 'function') {
       stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetHours / 24;
     }

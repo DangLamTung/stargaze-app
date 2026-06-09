@@ -117,24 +117,11 @@ export async function requestNotificationPermission() {
 
 export function showNotification(title, options = {}) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return null;
-  var safeOpts = { body: options.body || '', tag: 'stargaze', ...options };
-  delete safeOpts.icon;
-  delete safeOpts.badge;
-  delete safeOpts.image;
-  // Try service worker first (works on Android), fallback to direct
-  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'SCHEDULE',
-      delay: 100,
-      title: title,
-      body: safeOpts.body || ''
-    });
-    return null;
-  }
-  try {
-    return new Notification(title, safeOpts);
-  } catch (e) {
+  if (!navigator.serviceWorker) return null;
+  navigator.serviceWorker.ready.then(function(reg) {
+    reg.showNotification(title, { body: options.body || '', tag: 'stargaze', ...options });
+  }).catch(function(e) {
     console.warn('Notification failed:', e);
-    return null;
-  }
+  });
+  return null;
 }

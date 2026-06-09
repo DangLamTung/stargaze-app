@@ -227,21 +227,16 @@ $('settings-notif-btn')?.addEventListener('click', async () => {
   }
 });
 
-// Test notification button - 1 min delayed with real weather
+// Test notification button - sends immediately
 $('settings-test-notif-btn')?.addEventListener('click', () => {
   if (!('Notification' in window)) {
     showToast('Notifications not supported', 'error');
     return;
   }
   if (Notification.permission !== 'granted') {
-    showToast('Permission: ' + Notification.permission + '. Tap "Request Permission" first.', 'warn');
+    showToast('Permission: ' + Notification.permission, 'warn');
     return;
   }
-  if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
-    showToast('Service worker not ready. Refresh page.', 'error');
-    return;
-  }
-  // Build weather info from current state
   var w = state.weatherData?.current || {};
   var info = [
     '☁️ Cloud ' + (w.cloudCover != null ? Math.round(w.cloudCover) + '%' : '?'),
@@ -250,13 +245,21 @@ $('settings-test-notif-btn')?.addEventListener('click', () => {
     '💧 Hum ' + (w.humidity != null ? Math.round(w.humidity) + '%' : '?'),
     '📍 ' + (state.location ? state.location.name : '?')
   ].join(' · ');
-  navigator.serviceWorker.controller.postMessage({
-    type: 'SCHEDULE',
-    delay: 60000,
-    title: '🔭 Stargazing Update',
-    body: info
-  });
-  showToast('Notification scheduled in 1 min! ⏱️', 'success');
+  try {
+    new Notification('🔭 StarGaze Update', { body: info, tag: 'stargaze-test' });
+    showToast('Notification sent! ✅', 'success');
+    return;
+  } catch(e) {}
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.ready.then(function(reg) {
+      reg.showNotification('🔭 StarGaze Update', { body: info, tag: 'stargaze-test' });
+      showToast('Notification sent via SW! ✅', 'success');
+    }).catch(function(e) {
+      showToast('SW failed: ' + e.message, 'error');
+    });
+  } else {
+    showToast('No notification method available', 'error');
+  }
 });
 
 // Update notification status when settings opens

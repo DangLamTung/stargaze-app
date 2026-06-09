@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>*{margin:0;padding:0}body{background:#000;overflow:hidden}canvas{display:block}#status{color:#fff;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:sans-serif;font-size:14px}</style></head>
+<body><div id="status">Loading Stellarium...</div>
+<script>document.getElementById("status").textContent="Loading engine...";</script>
+<script src="stellarium-web-engine.js"></script>
+<script>
+document.getElementById("status").textContent="Initializing...";
+StellariumWebEngine({
+  skydataUrl: "skydata/",
+  container: document.body,
+  onReady: function() {
+    document.getElementById("status").style.display = "none";
+  },
+  onError: function(e) {
+    document.getElementById("status").textContent = "Error: " + e;
+  }
+});
+</script></body></html>

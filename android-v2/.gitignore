@@ -1,0 +1,26 @@
+# Android/Gradle
+.gradle/
+build/
+*.apk
+*.aab
+*.dex
+*.class
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+
+# Android Studio
+*.log
+*.hprof
+
+# Node (for any root-level JS tooling)
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Stellarium sky data (large binary, re-downloadable)
+# Keep the assets bundling path though

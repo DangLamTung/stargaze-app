@@ -47,8 +47,8 @@ function quatToHdg(q) {
 
 function quatToAlt(q) {
   var x = q[0], y = q[1], z = q[2], w = q[3];
-  // Elevation of +Z: asin(1 - 2*(x² + y²)). Signed: +up, -down.
-  return Math.asin(Math.max(-1, Math.min(1, 1 - 2*(x*x + y*y)))) * 180 / Math.PI;
+  // Elevation of +Z. Negated: engine pitch convention.
+  return -Math.asin(Math.max(-1, Math.min(1, 1 - 2*(x*x + y*y)))) * 180 / Math.PI;
 }
 
 function angleDelta(a, b) {
@@ -98,8 +98,8 @@ function handleEvent(event) {
   } else return;
   if (raw == null || isNaN(raw)) raw = 0;
   smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch from deviceorientation beta (signed: +up, -down)
-  var pitchAngle = 90 - (event.beta || 0);
+  // Pitch from deviceorientation: use alpha on Android
+  var pitchAngle = event.alpha || 0;
   var rawAlt = Math.max(-90, Math.min(90, pitchAngle));
   smoothAltitude += LP * (rawAlt - smoothAltitude);
 }

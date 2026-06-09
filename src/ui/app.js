@@ -848,111 +848,94 @@ function initSkyMapView() {
   return _initSkyMapView(state);
 }
 
-// ─── Auto-refresh ───
+// ─── Auto-refresh (weather + notifications for favorites & forecast) ───
 function startNowRefresh() {
   stopNowRefresh();
+  checkAllFavorites();
+  checkAndNotifyForecast();
   refreshTimer = setInterval(async () => {
-    if (!state.location || state.loading) return;
-    try {
-      const wd = await getWeatherData(
-        state.location.latitude,
-        state.location.longitude,
-        state.location.timezone || 'auto',
-      );
-      state.weatherData = wd;
-      renderNowScore();
-    } catch (err) {
-      console.warn('Now-score refresh failed:', err);
+    if (state.location && !state.loading) {
+      try {
+        var wd = await getWeatherData(state.location.latitude, state.location.longitude, state.location.timezone || 'auto');
+        state.weatherData = wd;
+        renderNowScore();
+      } catch (err) { console.warn('Refresh failed:', err); }
     }
+    checkAllFavorites();
+    checkAndNotifyForecast();
   }, refreshIntervalMs);
 }
 function stopNowRefresh() {
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
 }
 
-// ─── 7-day forecast watcher (background notification for good nights) ───
-let forecastWatchTimer = null;
-const FORECAST_CHECK_MS = 30 * 60 * 1000; // every 30 minutes
-
-function startForecastWatch() {
-  stopForecastWatch();
-  checkAndNotifyForecast(); // run immediately
-  forecastWatchTimer = setInterval(checkAndNotifyForecast, FORECAST_CHECK_MS);
-}
-
-function stopForecastWatch() {
-  if (forecastWatchTimer) {
-    clearInterval(forecastWatchTimer);
-    forecastWatchTimer = null;
-  }
-}
+// ─── 7-day forecast watcher ───
+function startForecastWatch() {}
+function stopForecastWatch() {}
 
 async function checkAndNotifyForecast() {
   if (!state.location || !state.scores?.length) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
-  // Find any night in the next 7 days with score >= 60
-  const goodNights = state.scores.filter(s => s.score >= 60);
+  var goodNights = state.scores.filter(function(s) { return s.score >= 60; });
   if (!goodNights.length) return;
-
-  const best = goodNights[0]; // already sorted by date
-  const dateStr = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-  try {
-    new Notification('⭐ Good stargazing coming up!', {
-      body: `${best.rating} night (${best.score}/100) — ${dateStr}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
-      tag: `stargaze-${best.date}`,
-    });
-  } catch (e) { console.warn('Notification construct failed:', e); }
+  var best = goodNights[0];
+  var dateStr = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  var goodDays = state.scores.filter(function(s) { return s.score >= 50; }).length;
+  var body = best.rating + ' (' + best.score + '/100) — ' + dateStr + ' · ☁️ ' + best.avgCloudCover + '% · 🌡️ ' + best.tempMin + '°–' + best.tempMax + '°C · ' + goodDays + ' good nights in 7 days · 📍 ' + state.location.name;
+  sendNotification('⭐ Good stargazing coming up!', body, 'stargaze-' + best.date);
 }
-// ─── Favorites watcher — check all favorited locations in background ───
-let favWatchTimer = null;
-const FAV_CHECK_MS = 45 * 60 * 1000; // every 45 minutes
-window._favScores = {}; // { name: { score, rating, date } }
+// ─── Favorites watcher ───
+window._favScores = {};
 
-function startFavoritesWatch() {
-  stopFavoritesWatch();
-  checkAllFavorites(); // run immediately
-  favWatchTimer = setInterval(checkAllFavorites, FAV_CHECK_MS);
-}
-
-function stopFavoritesWatch() {
-  if (favWatchTimer) { clearInterval(favWatchTimer); favWatchTimer = null; }
-}
+function startFavoritesWatch() { checkAllFavorites(); }
+function stopFavoritesWatch() {}
 
 async function checkAllFavorites() {
-  const favs = getFavorites();
-  if (!favs.length) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-  for (const fav of favs) {
-    try {
-      const wd = await getWeatherData(fav.latitude, fav.longitude, 'auto');
-      const bortle = await estimateBortleClass(fav.latitude, fav.longitude);
-      const scores = calculateAllScores(wd, bortle, wd.current?.cloudCover ?? null);
-      const best = findBestNight(scores);
-      if (best) {
-        window._favScores[fav.name] = {
-          score: best.score, rating: best.rating, date: best.date,
-          cloud: best.avgCloudCover, moon: best.moonPhaseIcon,
-        };
-        // Notify if excellent (score >= 80)
-        if (best.score >= 80 && Notification.permission === 'granted') {
-          const d = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-          try {
-            new Notification(`🌟 ${fav.name}: ${best.rating} stargazing!`, {
-              body: `Score ${best.score}/100 — ${d}\n☁️ ${best.avgCloudCover}% cloud · ${best.moonPhaseIcon} ${best.moonPhaseName}`,
-              tag: `fav-${fav.name}-${best.date}`,
-            });
-          } catch (e) { console.warn('Fav notification failed:', e); }
-        }
-      }
-    } catch (e) { console.warn(`Fav check failed for ${fav.name}:`, e); }
+  // Build list: current location + all favorites
+  var locs = [];
+  if (state.location) locs.push({ name: state.location.name, latitude: state.location.latitude, longitude: state.location.longitude });
+  var favs = getFavorites();
+  for (var i = 0; i < favs.length; i++) {
+    var fav = favs[i];
+    if (state.location && Math.abs(fav.latitude - state.location.latitude) < 0.01 && Math.abs(fav.longitude - state.location.longitude) < 0.01) continue;
+    locs.push({ name: fav.name, latitude: fav.latitude, longitude: fav.longitude });
   }
+  if (!locs.length) return;
 
+  for (var j = 0; j < locs.length; j++) {
+    var loc = locs[j];
+    try {
+      var wd = await getWeatherData(loc.latitude, loc.longitude, 'auto');
+      var bortle = await estimateBortleClass(loc.latitude, loc.longitude);
+      var scores = calculateAllScores(wd, bortle, wd.current?.cloudCover ?? null);
+      var best = findBestNight(scores);
+      if (best && best.score >= 50) {
+        window._favScores[loc.name] = { score: best.score, rating: best.rating, date: best.date };
+        var goodDays = scores.filter(function(s) { return s.score >= 50; }).length;
+        var emoji = best.score >= 80 ? '🌟' : best.score >= 60 ? '⭐' : '🌙';
+        var summary = [
+          'Best: ' + best.score + '/100 ' + best.rating,
+          '📅 ' + new Date(best.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),
+          '☁️ ' + best.avgCloudCover + '% cloud · ' + best.moonPhaseIcon + ' ' + best.moonPhaseName,
+          '🌡️ ' + best.tempMin + '°–' + best.tempMax + '°C',
+          '📊 ' + goodDays + ' good nights in 7-day forecast'
+        ].join(' · ');
+        sendNotification(emoji + ' ' + loc.name, summary, 'loc-' + loc.name.replace(/\s/g,'-'));
+      }
+    } catch (e) { console.warn('Check failed for ' + loc.name + ':', e); }
+  }
   renderFavoritesList();
+}
+
+function sendNotification(title, body, tag) {
+  try { new Notification(title, { body: body, tag: tag }); return; } catch(e) {}
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.ready.then(function(reg) {
+      reg.showNotification(title, { body: body, tag: tag });
+    }).catch(function(){});
+  }
 }
 // ─── Nearby wrappers ───
 function handleFindNearby() {

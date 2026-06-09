@@ -965,24 +965,29 @@ async function handleReminderSubmit(e) {
     }
     var ok = await requestNotificationPermission();
     if (ok) {
-      // Send confirmation now
-      showNotification('Reminder Set', {
-        body: night.rating + ' night on ' + new Date(night.date).toLocaleDateString(),
-      });
-      // Schedule via service worker for night time
+      var nightDate = new Date(night.date).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
+      var weatherInfo = [
+        '⭐ ' + night.score + '/100 ' + night.rating,
+        '☁️ Cloud ' + (night.avgCloudCover || '?') + '%',
+        '🌡️ ' + (night.tempMin || '?') + '°–' + (night.tempMax || '?') + '°C',
+        '👁️ Vis ' + ((night.avgVisibility || 0) / 1000).toFixed(1) + 'km',
+        night.moonPhaseIcon + ' Moon ' + (night.moonPhaseName || '?'),
+        '📍 ' + state.location.name
+      ].join(' · ');
+      showNotification('🔭 Stargazing — ' + nightDate, { body: weatherInfo });
       var now = Date.now();
-      var target = new Date(night.sunset).getTime() + 30 * 60000; // 30min after sunset
+      var target = new Date(night.sunset).getTime() + 30 * 60000;
       var delay = Math.max(1000, target - now);
       if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: 'SCHEDULE',
           delay: delay,
           title: '🔭 Stargazing Tonight!',
-          body: night.rating + ' conditions (' + night.score + '/100) at ' + state.location.name
+          body: weatherInfo
         });
         showToast('Reminder scheduled for sunset! ✅', 'success');
       } else {
-        showToast('Notification enabled — reminder set!', 'success');
+        showToast('Notification set! ✅', 'success');
       }
     } else {
       showToast('Notification denied — check browser site settings', 'error');

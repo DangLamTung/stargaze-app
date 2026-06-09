@@ -287,7 +287,7 @@ function renderLoop() {
   var h = ((smoothHeading % 360) + 360) % 360;
   if (engineReady && stel && stel.core && stel.core.observer) {
     stel.core.observer.yaw = (-h) * Math.PI / 180;
-    stel.core.observer.pitch = smoothAltitude * Math.PI / 180;
+    stel.core.observer.pitch = -smoothAltitude * Math.PI / 180;
     if (typeof stel.date2MJD === 'function') {
       stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetHours / 24;
     }

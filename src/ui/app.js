@@ -907,7 +907,7 @@ function buildForecastBody(scores) {
     var s = scores[i];
     var d = new Date(s.date).toLocaleDateString('en-US',{weekday:'short'});
     var cloud = (s.avgCloudCover != null) ? s.avgCloudCover : '?';
-    var rain = (s.precipProbability != null) ? s.precipProbability : '?';
+    var rain = (s.avgPrecipProb != null) ? s.avgPrecipProb : '?';
     lines.push(d + ' ☁' + cloud + '% 🌧' + rain + '% ' + scoreIcon(s.score) + ' ' + s.score);
   }
   return lines.join('\n');

@@ -61,7 +61,12 @@ import {
 // ─── State ───
 const state = { location: null, weatherData: null, scores: null, bestNight: null, loading: false, bortleClass: 5 };
 let refreshTimer = null;
-let refreshIntervalMs = 5 * 60 * 1000; // default 5 min, updated from settings
+let refreshIntervalMs = 5 * 60 * 1000; // default 5 min
+
+function restartRefresh() {
+  stopNowRefresh();
+  startNowRefresh();
+}
 
 const $ = id => document.getElementById(id);
 let cloudAnimating = false;

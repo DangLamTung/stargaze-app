@@ -324,6 +324,22 @@ $('save-settings-btn')?.addEventListener('click', async () => {
 function init() {
   initMap('map');
 
+  // Load saved settings interval BEFORE starting refresh
+  fetch('/api/settings')
+    .then(res => res.json())
+    .then(data => {
+      if (data.interval) {
+        refreshIntervalMs = parseInt(data.interval) * 1000;
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      // Start refresh with correct interval (or default 5 min if load fails)
+      startNowRefresh();
+      startForecastWatch();
+      startFavoritesWatch();
+    });
+
   loadFavorites().then(() => renderFavoritesList());
 
   // Pre-fetch cloud APIs so they are ready when toggled
@@ -592,8 +608,22 @@ function init() {
     stopFavoritesWatch();
   });
 
-  // Start favorites watcher
-  startFavoritesWatch();
+  // Resume refresh when tab becomes visible (fixes mobile background throttling)
+  var lastVisibleTime = Date.now();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      var elapsed = Date.now() - lastVisibleTime;
+      // If tab was hidden longer than the refresh interval, run immediately
+      if (elapsed >= refreshIntervalMs) {
+        checkAllFavorites();
+        checkAndNotifyForecast();
+        // Restart the interval timer
+        restartRefresh();
+      }
+    } else {
+      lastVisibleTime = Date.now();
+    }
+  });
 
   // Load Ho Chi Minh City by default
   const defaultLoc = {

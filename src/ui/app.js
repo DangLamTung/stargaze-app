@@ -227,7 +227,7 @@ $('settings-notif-btn')?.addEventListener('click', async () => {
   }
 });
 
-// Test notification button
+// Test notification button - 1 min delayed with real weather
 $('settings-test-notif-btn')?.addEventListener('click', () => {
   if (!('Notification' in window)) {
     showToast('Notifications not supported', 'error');
@@ -237,25 +237,26 @@ $('settings-test-notif-btn')?.addEventListener('click', () => {
     showToast('Permission: ' + Notification.permission + '. Tap "Request Permission" first.', 'warn');
     return;
   }
-  if (!navigator.serviceWorker) {
-    showToast('Service worker not available', 'error');
+  if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+    showToast('Service worker not ready. Refresh page.', 'error');
     return;
   }
-  navigator.serviceWorker.getRegistration().then(function(reg) {
-    if (!reg) {
-      showToast('No SW registration. Refresh page.', 'error');
-      return;
-    }
-    reg.showNotification('🧪 StarGaze Test', {
-      body: '⭐ 92/100 · ☁️ Cloud 5% · 🌡️ 22-28°C · 👁️ Vis 24km · 📍 Test works!',
-      tag: 'stargaze-test',
-      requireInteraction: true
-    }).then(function() {
-      showToast('Test notification sent! ✅', 'success');
-    }).catch(function(e) {
-      showToast('Failed: ' + e.message, 'error');
-    });
+  // Build weather info from current state
+  var w = state.weatherData?.current || {};
+  var info = [
+    '☁️ Cloud ' + (w.cloudCover != null ? Math.round(w.cloudCover) + '%' : '?'),
+    '🌡️ ' + (w.temperature != null ? Math.round(w.temperature) + '°C' : '?'),
+    '👁️ Vis ' + (w.visibility != null ? (w.visibility/1000).toFixed(1) + 'km' : '?'),
+    '💧 Hum ' + (w.humidity != null ? Math.round(w.humidity) + '%' : '?'),
+    '📍 ' + (state.location ? state.location.name : '?')
+  ].join(' · ');
+  navigator.serviceWorker.controller.postMessage({
+    type: 'SCHEDULE',
+    delay: 60000,
+    title: '🔭 Stargazing Update',
+    body: info
   });
+  showToast('Notification scheduled in 1 min! ⏱️', 'success');
 });
 
 // Update notification status when settings opens

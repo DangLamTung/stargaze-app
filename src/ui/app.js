@@ -222,6 +222,27 @@ $('settings-notif-btn')?.addEventListener('click', async () => {
   }
 });
 
+// Test notification button
+$('settings-test-notif-btn')?.addEventListener('click', () => {
+  if (!('Notification' in window)) {
+    showToast('Notifications not supported', 'error');
+    return;
+  }
+  if (Notification.permission !== 'granted') {
+    showToast('Permission not granted. Tap "Request Permission" first.', 'warn');
+    return;
+  }
+  try {
+    new Notification('🧪 StarGaze Test', {
+      body: '⭐ 92/100 · ☁️ Cloud 5% · 🌡️ 22-28°C · 👁️ Vis 24km · 📍 Test notification works!',
+      tag: 'stargaze-test'
+    });
+    showToast('Test notification sent! ✅', 'success');
+  } catch(e) {
+    showToast('Failed: ' + e.message, 'error');
+  }
+});
+
 // Update notification status when settings opens
 function updateNotifStatus() {
   var status = document.getElementById('settings-notif-status');

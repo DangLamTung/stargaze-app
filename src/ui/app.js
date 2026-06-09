@@ -232,14 +232,33 @@ $('settings-test-notif-btn')?.addEventListener('click', () => {
     showToast('Permission not granted. Tap "Request Permission" first.', 'warn');
     return;
   }
-  try {
-    new Notification('🧪 StarGaze Test', {
-      body: '⭐ 92/100 · ☁️ Cloud 5% · 🌡️ 22-28°C · 👁️ Vis 24km · 📍 Test notification works!',
-      tag: 'stargaze-test'
+  // Use service worker to send notification (works on Android)
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SCHEDULE',
+      delay: 100,
+      title: '🧪 StarGaze Test',
+      body: '⭐ 92/100 · ☁️ Cloud 5% · 🌡️ 22-28°C · 👁️ Vis 24km · 📍 Test works!'
     });
     showToast('Test notification sent! ✅', 'success');
-  } catch(e) {
-    showToast('Failed: ' + e.message, 'error');
+  } else if (navigator.serviceWorker) {
+    navigator.serviceWorker.ready.then(function(reg) {
+      reg.showNotification('🧪 StarGaze Test', {
+        body: '⭐ 92/100 · ☁️ Cloud 5% · 🌡️ 22-28°C · 👁️ Vis 24km · 📍 Test works!',
+        tag: 'stargaze-test'
+      });
+      showToast('Test notification sent! ✅', 'success');
+    });
+  } else {
+    try {
+      new Notification('🧪 StarGaze Test', {
+        body: '⭐ 92/100 · ☁️ Cloud 5% · 🌡️ 22-28°C · 👁️ Vis 24km · 📍 Test notification works!',
+        tag: 'stargaze-test'
+      });
+      showToast('Test notification sent! ✅', 'success');
+    } catch(e) {
+      showToast('Failed: ' + e.message, 'error');
+    }
   }
 });
 

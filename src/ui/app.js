@@ -234,21 +234,27 @@ $('settings-test-notif-btn')?.addEventListener('click', () => {
     return;
   }
   if (Notification.permission !== 'granted') {
-    showToast('Permission not granted. Tap "Request Permission" first.', 'warn');
+    showToast('Permission: ' + Notification.permission + '. Tap "Request Permission" first.', 'warn');
     return;
   }
   if (!navigator.serviceWorker) {
     showToast('Service worker not available', 'error');
     return;
   }
-  navigator.serviceWorker.ready.then(function(reg) {
+  navigator.serviceWorker.getRegistration().then(function(reg) {
+    if (!reg) {
+      showToast('No SW registration. Refresh page.', 'error');
+      return;
+    }
     reg.showNotification('🧪 StarGaze Test', {
       body: '⭐ 92/100 · ☁️ Cloud 5% · 🌡️ 22-28°C · 👁️ Vis 24km · 📍 Test works!',
-      tag: 'stargaze-test'
+      tag: 'stargaze-test',
+      requireInteraction: true
+    }).then(function() {
+      showToast('Test notification sent! ✅', 'success');
+    }).catch(function(e) {
+      showToast('Failed: ' + e.message, 'error');
     });
-    showToast('Test notification sent! ✅', 'success');
-  }).catch(function(e) {
-    showToast('Failed: ' + e.message, 'error');
   });
 });
 
@@ -565,7 +571,9 @@ function init() {
 
   // Register service worker for PWA notifications
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      reg.update();
+    }).catch(() => {});
   }
 
   // Request notification permission for forecast alerts

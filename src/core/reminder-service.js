@@ -118,8 +118,9 @@ export async function requestNotificationPermission() {
 export function showNotification(title, options = {}) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return null;
   if (!navigator.serviceWorker) return null;
-  navigator.serviceWorker.ready.then(function(reg) {
-    reg.showNotification(title, { body: options.body || '', tag: 'stargaze', ...options });
+  navigator.serviceWorker.getRegistration().then(function(reg) {
+    if (!reg) return;
+    reg.showNotification(title, { body: options.body || '', tag: 'stargaze', requireInteraction: true });
   }).catch(function(e) {
     console.warn('Notification failed:', e);
   });

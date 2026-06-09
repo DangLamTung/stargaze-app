@@ -875,17 +875,42 @@ function stopForecastWatch() {}
 
 async function checkAndNotifyForecast() {
   if (!state.location || !state.weatherData || !('Notification' in window) || Notification.permission !== 'granted') return;
-  var cur = state.weatherData.current || {};
   try {
     var bortle = await estimateBortleClass(state.location.latitude, state.location.longitude).catch(function(){ return 5; });
+    var cur = state.weatherData.current || {};
     var scores = calculateAllScores(state.weatherData, bortle, cur.cloudCover ?? null);
-    var days = scores.slice(0, 7).map(function(s) {
-      var d = new Date(s.date).toLocaleDateString('en-US',{weekday:'short'});
-      return d + ' ' + s.score;
-    }).join(' ');
-    var summary = '☁️ ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?') + ' · 🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?') + ' · ' + days;
-    sendNotification('📍 ' + state.location.name, summary, 'now-' + state.location.name.replace(/\s/g,'-'));
+    var body = buildForecastBody(scores);
+    sendNotification('📍 ' + state.location.name, body, 'now-' + state.location.name.replace(/\s/g,'-'));
   } catch(e) { console.warn('Forecast notify failed:', e); }
+}
+
+function scoreIcon(v) {
+  if (v >= 90) return '🌟';
+  if (v >= 80) return '⭐';
+  if (v >= 70) return '✨';
+  if (v >= 60) return '🌙';
+  if (v >= 50) return '🌤️';
+  return '☁️';
+}
+
+function buildForecastBody(scores) {
+  var lines = [];
+  var best = null;
+  for (var i = 0; i < scores.length; i++) {
+    if (!best || scores[i].score > best.score) best = scores[i];
+  }
+  if (best) {
+    var bd = new Date(best.date).toLocaleDateString('en-US',{weekday:'short'});
+    lines.push(scoreIcon(best.score) + ' Best: ' + bd + ' ' + best.score);
+  }
+  for (var i = 0; i < Math.min(scores.length, 7); i++) {
+    var s = scores[i];
+    var d = new Date(s.date).toLocaleDateString('en-US',{weekday:'short'});
+    var cloud = (s.avgCloudCover != null) ? s.avgCloudCover : '?';
+    var rain = (s.precipProbability != null) ? s.precipProbability : '?';
+    lines.push(d + ' ☁' + cloud + '% 🌧' + rain + '% ' + scoreIcon(s.score) + ' ' + s.score);
+  }
+  return lines.join('\n');
 }
 // ─── Favorites watcher ───
 window._favScores = {};
@@ -913,12 +938,8 @@ async function checkAllFavorites() {
       var cur = wd.current || {};
       var bortle = await estimateBortleClass(loc.lat, loc.lon).catch(function(){ return 5; });
       var scores = calculateAllScores(wd, bortle, cur.cloudCover ?? null);
-      var days = scores.slice(0, 7).map(function(s) {
-        var d = new Date(s.date).toLocaleDateString('en-US',{weekday:'short'});
-        return d + ' ' + s.score;
-      }).join(' ');
-      var summary = '☁️ ' + (cur.cloudCover != null ? Math.round(cur.cloudCover) + '%' : '?') + ' · 🌡️ ' + (cur.temperature != null ? Math.round(cur.temperature) + '°C' : '?') + ' · ' + days;
-      sendNotification('📍 ' + loc.name, summary, 'loc-' + loc.name.replace(/\s/g,'-'));
+      var body = buildForecastBody(scores);
+      sendNotification('📍 ' + loc.name, body, 'loc-' + loc.name.replace(/\s/g,'-'));
     } catch (e) { console.warn('Check failed for ' + loc.name + ':', e); }
   }
   renderFavoritesList();

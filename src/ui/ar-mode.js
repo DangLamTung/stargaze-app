@@ -254,17 +254,27 @@ function setupSliders() {
     btn.addEventListener('click', function() {
       btn.classList.toggle('active');
       var on = btn.classList.contains('active');
+      console.log('[AR] Toggle ' + id + ' → ' + on);
       if (engineReady && stel && stel.core) {
         var obj = stel.core[prop];
+        console.log('[AR] stel.core.' + prop + ' =', obj ? 'found' : 'MISSING');
         if (obj) {
           if (opts && opts.sub) {
-            if (obj[opts.sub]) obj[opts.sub].visible = on;
+            console.log('[AR] Trying sub.' + opts.sub, obj[opts.sub] ? 'found' : 'MISSING');
+            if (obj[opts.sub]) {
+              obj[opts.sub].visible = on;
+            } else if (prop === 'lines' && obj.azimuthal) {
+              obj.azimuthal.visible = on;
+            } else if (prop === 'lines' && obj.gridlines) {
+              obj.gridlines.visible = on;
+            } else if (prop === 'lines') {
+              // If no sub-objects exist, set visible on the lines object itself
+              obj.visible = on;
+              console.log('[AR] Set lines.visible directly');
+            }
           } else {
             obj.visible = on;
           }
-        }
-        if (prop === 'lines' && stel.core.lines && stel.core.lines.azimuthal) {
-          stel.core.lines.azimuthal.visible = on;
         }
       }
     });

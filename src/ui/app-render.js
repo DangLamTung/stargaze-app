@@ -51,6 +51,13 @@ export function renderNowScore(state, $) {
   $('now-visibility').textContent = nowData.visibility != null ? `${(nowData.visibility / 1000).toFixed(0)}km` : '--';
   $('now-wind').textContent = nowData.windSpeed != null ? `${nowData.windSpeed} km/h` : '--';
 
+  // Moon illumination
+  var moonPhase = 0;
+  if (state.scores && state.scores.length > 0) moonPhase = state.scores[0].moonPhase || 0;
+  var moonIllum = Math.round(50 * (1 - Math.cos(2 * Math.PI * moonPhase)));
+  $('now-moon-pct').textContent = moonIllum + '%';
+  $('now-moon-icon').textContent = moonIllum > 80 ? '🌕' : moonIllum > 50 ? '🌔' : moonIllum > 20 ? '🌒' : '🌑';
+
   const gaugeFill = section.querySelector('.now-gauge-fill');
   if (gaugeFill) {
     gaugeFill.style.strokeDasharray = circ;

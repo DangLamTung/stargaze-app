@@ -133,8 +133,9 @@ export function calculateHourlyScore(hourData, moonPhase, bortleClass = 5) {
   if (midCloud > 70 && lowCloud < 30) totalScore *= 0.5;
 
   // High cirrus: degrades contrast but doesn't block DSOs completely
+  // Only counts as cirrus-dominated if total cloud is moderate (< 65%)
   var highCloud = hourData.cloudCoverHigh ?? 0;
-  var isCirrusDominated = highCloud > 50 && lowCloud < 20 && midCloud < 30;
+  var isCirrusDominated = highCloud > 50 && lowCloud < 20 && midCloud < 30 && cloudPct < 65;
 
   if (isCirrusDominated) {
     totalScore *= 0.78; // light penalty — stars still visible through cirrus

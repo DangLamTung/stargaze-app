@@ -5,11 +5,7 @@ export const STELLARIUM_DATA_BASE = 'https://data.stellarium.org/';
 
 export const STELLARIUM_CATALOGS = [
   { type: 'stars', url: 'stars' },
-  // Sky cultures — constellation lines & names for different traditions
   { type: 'skycultures', url: 'skycultures/western', key: 'western' },
-  { type: 'skycultures', url: 'skycultures/chinese', key: 'chinese' },
-  { type: 'skycultures', url: 'skycultures/arabic', key: 'arabic' },
-  // Deep sky objects, Milky Way, planets
   { type: 'dsos', url: 'dso' },
   { type: 'milkyway', url: 'surveys/milkyway' },
   { type: 'planets', url: 'surveys/sso/sun', key: 'sun' },
@@ -20,12 +16,6 @@ export const STELLARIUM_CATALOGS = [
   { type: 'planets', url: 'surveys/sso/jupiter', key: 'jupiter' },
   { type: 'planets', url: 'surveys/sso/saturn', key: 'saturn' },
   { type: 'landscapes', url: 'landscapes/guereins', key: 'guereins' },
-];
-
-export const SKY_CULTURES = [
-  { key: 'western', label: '🌍 Western', icon: '⭐' },
-  { key: 'chinese', label: '🇨🇳 Chinese', icon: '🐉' },
-  { key: 'arabic', label: '🌙 Arabic', icon: '🌙' },
 ];
 
 export const STELLARIUM_WASM = 'lib/stellarium-web-engine.wasm';

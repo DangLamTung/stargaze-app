@@ -91,11 +91,8 @@ export function configureCatalogs(engine) {
     engine.core.constellations.lines_visible = true;
     engine.core.constellations.labels_visible = true;
     engine.core.constellations.boundaries_visible = false;
-    engine.core.constellations.art_visible = true;       // constellation artwork
-    engine.core.constellations.artOpacity = 0.35;        // subtle artwork overlay
   }
   if (engine.core.skycultures) {
-    // Default to western, user can switch
     engine.core.skycultures.current = 'western';
   }
   if (engine.core.dsos) {

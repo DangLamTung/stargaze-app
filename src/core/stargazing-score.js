@@ -1,22 +1,41 @@
 /**
- * StargazingScorer — Stargazing quality scoring algorithm
+ * StargazingScorer — Milky Way & DSO-focused scoring algorithm.
  *
- * Cloud cover is the primary weather factor for stargazing.
- * Bortle and moon still matter, but clear skies should score well.
+ * For deep-sky / Milky Way: dark skies (Bortle) and transparency dominate.
+ * Cloud cover matters less than light pollution for faint extended objects.
+ * Low clouds are devastating; high cirrus degrades contrast but doesn't block.
  */
 
+import {
+  estimateAODFromPM25,
+  pm25ScatterPenalty,
+  estimateSeeing,
+  estimateExtinction,
+  lunarSkyBrightness,
+  estimatePWV,
+  cirrusWarning,
+  buildSkyQualityReport,
+} from './sky-quality.js';
+
+// DSO/Milky Way weights — Bortle & transparency are king
 const WEIGHTS = {
-  bortle: 0.15,
-  cloudCover: 0.45,
-  moonPhase: 0.2,
-  humidity: 0.08,
-  visibility: 0.07,
-  precipitation: 0.05,
+  bortle: 0.22,
+  transparency: 0.13,
+  cloudCover: 0.35,
+  moonPhase: 0.1,
+  seeing: 0.06,
+  humidity: 0.05,
+  scatter: 0.05,
+  visibility: 0.02,
+  precipitation: 0.02,
 };
 
 function scoreCloud(pct) {
   if (pct == null) return 50;
-  return Math.max(0, Math.min(100, 100 - pct));
+  if (pct >= 95) return 0;
+  if (pct >= 85) return Math.max(0, (95 - pct) * 2);
+  if (pct >= 60) return Math.max(0, (85 - pct) * 2);
+  return 100 - pct * 0.67;
 }
 
 function scoreMoonPhase(phase) {
@@ -48,10 +67,40 @@ function scorePrecip(p) {
   return ((50 - p) / 50) * 100;
 }
 
+function scoreSeeing(wind200hPa) {
+  const s = estimateSeeing(wind200hPa);
+  if (s.seeingArcsec == null) return 50;
+  if (s.seeingArcsec <= 0.5) return 100;
+  if (s.seeingArcsec <= 1.0) return 90;
+  if (s.seeingArcsec <= 2.0) return 70;
+  if (s.seeingArcsec <= 3.0) return 50;
+  if (s.seeingArcsec <= 5.0) return 25;
+  return 5;
+}
+
+function scoreTransparency(aod, scatterPenalty) {
+  if (aod == null) return 70;
+  let s = 100;
+  if (aod > 0.5) s = 20;
+  else if (aod > 0.3) s = 45;
+  else if (aod > 0.15) s = 70;
+  else if (aod > 0.05) s = 90;
+  return Math.round(s * (scatterPenalty != null ? scatterPenalty : 1));
+}
+
+function scoreScatter(pm25) {
+  const penalty = pm25ScatterPenalty(pm25);
+  return Math.round(penalty * 100);
+}
+
 export function calculateHourlyScore(hourData, moonPhase, bortleClass = 5) {
   if (!hourData) return 0;
 
   const cloudPct = hourData.cloudCover ?? 50;
+
+  // Tier 2: AOD from PM2.5 data
+  const aod = estimateAODFromPM25(hourData.pm25);
+  const scatterPenalty = pm25ScatterPenalty(hourData.pm25);
 
   const scores = {
     bortle: scoreBortle(bortleClass),
@@ -60,20 +109,50 @@ export function calculateHourlyScore(hourData, moonPhase, bortleClass = 5) {
     humidity: scoreHumidity(hourData.humidity),
     visibility: scoreVisibility(hourData.visibility),
     precipitation: scorePrecip(hourData.precipProbability),
+    seeing: scoreSeeing(hourData.wind200hPa),
+    transparency: scoreTransparency(aod, scatterPenalty),
+    scatter: scoreScatter(hourData.pm25),
   };
 
   let totalScore = 0;
   for (const [key, weight] of Object.entries(WEIGHTS)) {
-    totalScore += scores[key] * weight;
+    totalScore += (scores[key] || 50) * weight;
   }
 
-  // Heavy cloud / rain penalties only when skies are actually cloudy
-  if (cloudPct > 80) totalScore *= 0.35;
-  else if (cloudPct > 60) totalScore *= 0.65;
+  // ─── DSO-aware cloud penalties ───
+  // Low clouds (stratus) are devastating — they block everything
+  var lowCloud = hourData.cloudCoverLow ?? 0;
+  if (lowCloud > 60)
+    totalScore *= 0.15; // mostly blocked — nearly hopeless
+  else if (lowCloud > 40)
+    totalScore *= 0.35; // significant low cloud
+  else if (lowCloud > 20) totalScore *= 0.65; // patchy low cloud
 
+  // Mid clouds penalize but less than low
+  var midCloud = hourData.cloudCoverMid ?? 0;
+  if (midCloud > 70 && lowCloud < 30) totalScore *= 0.5;
+
+  // High cirrus: degrades contrast but doesn't block DSOs completely
+  var highCloud = hourData.cloudCoverHigh ?? 0;
+  var isCirrusDominated = highCloud > 50 && lowCloud < 20 && midCloud < 30;
+
+  if (isCirrusDominated) {
+    totalScore *= 0.78; // light penalty — stars still visible through cirrus
+  }
+
+  // Total cloud — hard cap: heavy clouds = can't see anything
+  if (!isCirrusDominated) {
+    if (cloudPct > 90) totalScore = Math.min(totalScore, 5);
+    else if (cloudPct > 80) totalScore = Math.min(totalScore, 15);
+    else if (cloudPct > 65) totalScore = Math.min(totalScore, 30);
+  }
+
+  // Rain + cloud = game over — but only if clouds are actually blocking (not just cirrus)
   const precip = hourData.precipProbability ?? 0;
-  if (precip > 50 && cloudPct > 40) totalScore *= 0.25;
-  else if (precip > 30 && cloudPct > 55) totalScore *= 0.5;
+  if (!isCirrusDominated) {
+    if (precip > 50 && cloudPct > 40) totalScore *= 0.2;
+    else if (precip > 30 && cloudPct > 55) totalScore *= 0.45;
+  }
 
   // Clear skies should not be dragged down by model rain probability alone
   if (hourData.cloudCover != null && hourData.cloudCover <= 15) {
@@ -83,7 +162,10 @@ export function calculateHourlyScore(hourData, moonPhase, bortleClass = 5) {
       scores.bortle * WEIGHTS.bortle +
       scores.humidity * WEIGHTS.humidity +
       scores.visibility * WEIGHTS.visibility +
-      scores.precipitation * WEIGHTS.precipitation;
+      scores.precipitation * WEIGHTS.precipitation +
+      scores.seeing * WEIGHTS.seeing +
+      scores.transparency * WEIGHTS.transparency +
+      scores.scatter * WEIGHTS.scatter;
     totalScore = Math.max(totalScore, clearBase);
   }
 
@@ -184,12 +266,22 @@ export function calculateAllScores(weatherData, bortleClass = 5, observedCloudPc
       humidityScore: scoreHumidity(avg(nightHrs, 'humidity')),
       visibilityScore: scoreVisibility(avg(nightHrs, 'visibility')),
       precipScore: scorePrecip(avg(nightHrs, 'precipProbability')),
+      seeingScore: scoreSeeing(avg(nightHrs, 'wind200hPa')),
+      transparencyScore: scoreTransparency(
+        estimateAODFromPM25(avg(nightHrs, 'pm25')),
+        pm25ScatterPenalty(avg(nightHrs, 'pm25')),
+      ),
 
       avgCloudCover: avgCloud,
       avgHumidity: avg(nightHrs, 'humidity'),
       avgVisibility: avg(nightHrs, 'visibility'),
       avgPrecipProb: avg(nightHrs, 'precipProbability'),
       avgWindSpeed: avg(nightHrs, 'windSpeed'),
+      avgPM25: avg(nightHrs, 'pm25'),
+      avgWind200hPa: avg(nightHrs, 'wind200hPa'),
+      avgCloudCoverLow: avg(nightHrs, 'cloudCoverLow'),
+      avgCloudCoverMid: avg(nightHrs, 'cloudCoverMid'),
+      avgCloudCoverHigh: avg(nightHrs, 'cloudCoverHigh'),
 
       moonPhase: day.moonPhase,
       moonPhaseName: day.moonPhaseName,

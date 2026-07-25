@@ -64,19 +64,27 @@ function findNearestStation(lat, lon, maxKm = 400) {
   return best;
 }
 
-function metarCloudToPct(codes) {
-  if (!codes || !codes.length) return 0;
-  const str = codes.join(' ');
-  if (/CAVOK|NSC|SKC|CLR/i.test(str)) return 0;
-  let maxPct = 0;
-  for (const c of codes) {
-    const cover = c.slice(0, 3).toUpperCase();
+function metarCloudToPct(cloudObjects) {
+  if (!cloudObjects || !cloudObjects.length) return { pct: 0, baseFt: null };
+  // Check for CAVOK/SKC/CLR
+  var covers = cloudObjects.map(c => (c.cover || '').toUpperCase()).join(' ');
+  if (/CAVOK|NSC|SKC|CLR/i.test(covers)) return { pct: 0, baseFt: null };
+  var maxPct = 0;
+  var lowestBase = null;
+  for (var i = 0; i < cloudObjects.length; i++) {
+    var c = cloudObjects[i];
+    var cover = (c.cover || '').slice(0, 3).toUpperCase();
     if (cover === 'FEW') maxPct = Math.max(maxPct, 20);
     else if (cover === 'SCT') maxPct = Math.max(maxPct, 40);
     else if (cover === 'BKN') maxPct = Math.max(maxPct, 70);
     else if (cover === 'OVC') maxPct = Math.max(maxPct, 100);
+    // Extract cloud base from the object's 'base' field (feet)
+    if (c.base != null && !isNaN(c.base)) {
+      var baseFt = parseInt(c.base, 10);
+      if (lowestBase === null || baseFt < lowestBase) lowestBase = baseFt;
+    }
   }
-  return maxPct;
+  return { pct: maxPct, baseFt: lowestBase };
 }
 
 // ─── Source fetchers ───
@@ -95,24 +103,32 @@ export async function fetchSatelliteCloud(lat, lon) {
 }
 
 export async function fetchMetarCurrent(lat, lon) {
-  const station = findNearestStation(lat, lon, 400);
+  const station = findNearestStation(lat, lon, 50); // only use if within 50km
   if (!station) return null;
   try {
-    const res = await fetch(`${METAR_URL}?ids=${station.icao}&format=json`);
+    const res = await fetch(`/api/metar/?ids=${station.icao}`);
     if (!res.ok) return null;
     const data = await res.json();
     if (!data?.length) return null;
     const m = data[0];
     const clouds = m.clouds || [];
-    const cloudCover = metarCloudToPct(Array.isArray(clouds) ? clouds.map(c => c.cover) : []);
+    const cloudResult = metarCloudToPct(Array.isArray(clouds) ? clouds : []);
+    const cloudCover = cloudResult.pct;
+    const cloudBaseFt = cloudResult.baseFt;
     const ageMs = Date.now() - m.obsTime * 1000;
     if (ageMs > 2 * 60 * 60 * 1000) return null;
+    // Calculate actual distance from user to station
+    const dlat = (station.lat - lat) * 111.32;
+    const dlon = (station.lon - lon) * (111.32 * Math.cos((lat * Math.PI) / 180));
+    const distanceKm = Math.round(Math.sqrt(dlat * dlat + dlon * dlon));
     return {
       cloudCover,
       temperature: m.temp != null ? m.temp : null,
       humidity: null,
       windSpeed: m.wspd != null ? Math.round(m.wspd * 1.852) : null,
-      visibility: m.visib != null ? m.visib * 1000 : null,
+      visibility: m.visib != null && !isNaN(m.visib) ? m.visib * 1000 : null,
+      cloudBaseFt: cloudBaseFt,
+      _meta: { station: station.icao, stationName: station.name, distanceKm },
     };
   } catch (e) {
     console.warn('METAR fetch failed:', e);
@@ -121,18 +137,17 @@ export async function fetchMetarCurrent(lat, lon) {
 }
 
 export async function fetchWeatherApiCurrent(lat, lon) {
-  const key = typeof window !== 'undefined' ? window.STARGAZE_WEATHERAPI_KEY : null;
-  if (!key) return null;
   try {
-    const res = await fetch(`https://api.weatherapi.com/v1/current.json?key=${key}&q=${lat},${lon}&aqi=no`);
+    const res = await fetch(`/api/weatherapi/current?lat=${lat}&lon=${lon}`);
     if (!res.ok) return null;
     const c = (await res.json()).current;
+    if (!c) return null;
     return {
       cloudCover: c.cloud ?? null,
       temperature: c.temp_c ?? null,
       humidity: c.humidity ?? null,
       windSpeed: c.wind_kph != null ? Math.round(c.wind_kph) : null,
-      visibility: c.vis_km != null ? c.vis_km * 1000 : null,
+      visibility: c.vis_km != null && !isNaN(c.vis_km) ? c.vis_km * 1000 : null,
     };
   } catch (e) {
     console.warn('WeatherAPI fetch failed:', e);
@@ -141,12 +156,8 @@ export async function fetchWeatherApiCurrent(lat, lon) {
 }
 
 export async function fetchOwmCurrent(lat, lon) {
-  const key = typeof window !== 'undefined' ? window.STARGAZE_OWM_KEY : null;
-  if (!key) return null;
   try {
-    const res = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${key}`,
-    );
+    const res = await fetch(`/api/owm/current?lat=${lat}&lon=${lon}`);
     if (!res.ok) return null;
     const data = await res.json();
     return {
@@ -158,25 +169,6 @@ export async function fetchOwmCurrent(lat, lon) {
     };
   } catch (e) {
     console.warn('OWM fetch failed:', e);
-    return null;
-  }
-}
-
-export async function fetchWttrCurrent(lat, lon) {
-  try {
-    const res = await fetch(`https://wttr.in/${lat},${lon}?format=j1`);
-    if (!res.ok) return null;
-    const cur = (await res.json()).current_condition?.[0];
-    if (!cur) return null;
-    return {
-      cloudCover: cur.cloudcover != null ? parseInt(cur.cloudcover, 10) : null,
-      temperature: cur.temp_C != null ? parseFloat(cur.temp_C) : null,
-      humidity: cur.humidity != null ? parseInt(cur.humidity, 10) : null,
-      windSpeed: cur.windspeedKmph != null ? parseInt(cur.windspeedKmph, 10) : null,
-      visibility: cur.visibility != null ? parseInt(cur.visibility, 10) * 1000 : null,
-    };
-  } catch (e) {
-    console.warn('wttr.in fetch failed:', e);
     return null;
   }
 }
@@ -231,24 +223,41 @@ export async function fetchMetNoForecast(lat, lon) {
  * Returns array of { time: Date, cloudCover: number }.
  */
 export async function fetchWeatherApiForecast(lat, lon) {
-  const key = typeof window !== 'undefined' ? window.STARGAZE_WEATHERAPI_KEY : null;
-  if (!key) return null;
   try {
-    const res = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${key}&q=${lat},${lon}&days=3&aqi=no`);
+    const res = await fetch(`/api/weatherapi/forecast?lat=${lat}&lon=${lon}`);
     if (!res.ok) return null;
     const data = await res.json();
     const result = [];
     for (const day of data.forecast?.forecastday || []) {
       for (const hour of day.hour || []) {
-        result.push({
-          time: new Date(hour.time),
-          cloudCover: hour.cloud ?? null,
-        });
+        result.push({ time: new Date(hour.time), cloudCover: hour.cloud ?? null });
       }
     }
     return result.length ? result : null;
   } catch (e) {
     console.warn('WeatherAPI forecast fetch failed:', e);
+    return null;
+  }
+}
+
+/**
+ * AccuWeather current conditions — uses backend proxy (set ACCUWEATHER_KEY env var).
+ */
+export async function fetchAccuWeatherCurrent(lat, lon) {
+  try {
+    const res = await fetch(`/api/accuweather/current?lat=${lat}&lon=${lon}`);
+    if (!res.ok) return null;
+    const cur = await res.json();
+    if (!cur || cur.error) return null;
+    return {
+      cloudCover: cur.CloudCover ?? null,
+      temperature: cur.Temperature?.Metric?.Value ?? null,
+      humidity: cur.RelativeHumidity ?? null,
+      windSpeed: cur.Wind?.Speed?.Metric?.Value != null ? Math.round(cur.Wind.Speed.Metric.Value) : null,
+      visibility: cur.Visibility?.Metric?.Value != null ? cur.Visibility.Metric.Value * 1000 : null,
+    };
+  } catch (e) {
+    console.warn('AccuWeather fetch failed:', e);
     return null;
   }
 }

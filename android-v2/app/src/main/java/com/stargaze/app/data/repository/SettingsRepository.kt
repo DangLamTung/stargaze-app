@@ -14,6 +14,7 @@ class SettingsRepository(private val context: Context) {
 
     companion object {
         private val REFRESH_INTERVAL_KEY = intPreferencesKey("refresh_interval_seconds")
+        private val MODE_AI_KEY = booleanPreferencesKey("mode_ai_enabled")
         private val DEFAULT_INTERVAL = 3600 // 60 minutes
 
         val PERMISSION_NOTIFICATIONS = "notifications"
@@ -23,12 +24,25 @@ class SettingsRepository(private val context: Context) {
         prefs[REFRESH_INTERVAL_KEY] ?: DEFAULT_INTERVAL
     }
 
+    val modeAIFlow: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[MODE_AI_KEY] ?: false
+    }
+
     suspend fun getRefreshInterval(): Int =
         context.settingsDataStore.data.first()[REFRESH_INTERVAL_KEY] ?: DEFAULT_INTERVAL
 
     suspend fun setRefreshInterval(seconds: Int) {
         context.settingsDataStore.edit { prefs ->
             prefs[REFRESH_INTERVAL_KEY] = seconds
+        }
+    }
+
+    suspend fun isModeAIEnabled(): Boolean =
+        context.settingsDataStore.data.first()[MODE_AI_KEY] ?: false
+
+    suspend fun setModeAIEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[MODE_AI_KEY] = enabled
         }
     }
 }

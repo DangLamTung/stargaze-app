@@ -28,14 +28,17 @@ export async function searchNearbyPlaces(lat, lon, radiusKm, country = null) {
 /**
  * Fetch weather data for multiple locations simultaneously.
  * Splits into batches of 50 to avoid URL length limits.
+ * @param {Function} [onProgress] - Optional callback(batchNum, totalBatches)
  */
-export async function getBatchWeatherData(places, timezone = 'auto') {
+export async function getBatchWeatherData(places, timezone = 'auto', onProgress = null) {
   if (!places.length) return [];
 
   const BATCH_SIZE = 50;
+  const totalBatches = Math.ceil(places.length / BATCH_SIZE);
   const results = [];
 
   for (let i = 0; i < places.length; i += BATCH_SIZE) {
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
     const batch = places.slice(i, i + BATCH_SIZE);
     const lats = batch.map(p => p.latitude).join(',');
     const lons = batch.map(p => p.longitude).join(',');
@@ -89,10 +92,12 @@ export async function getBatchWeatherData(places, timezone = 'auto') {
       // If only 1 place, Open-Meteo returns an object, not an array
       const dataArray = Array.isArray(rawData) ? rawData : [rawData];
       results.push(...dataArray.map(raw => parseWeatherData(raw)));
+      if (onProgress) onProgress(batchNum, totalBatches);
     } catch (err) {
       console.error(`Batch weather fetch failed (batch ${i / BATCH_SIZE + 1}):`, err);
       // Fill failed batch with nulls so indices stay aligned
       results.push(...batch.map(() => null));
+      if (onProgress) onProgress(batchNum, totalBatches);
     }
   }
 

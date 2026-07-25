@@ -1,17 +1,36 @@
 import datetime
+import gzip
 import http.server
+import io
 import json
 import os
 import socketserver
 import sys
 import threading
+import time
 import urllib.parse
 
+# Load .env file if present (no external deps needed)
+def _load_env():
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, _, val = line.partition("=")
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+_load_env()
+
+from .routes import find_route, _json as _route_json
+
 from .api import (
-    handle_api_bortle_logic,
-    handle_api_nearby_logic,
-    handle_api_satellite_cloud_logic,
-    handle_api_tile_logic,
+    handle_api_bortle_batch_logic,
     handle_test_notification,
 )
 from .tasks import favorites_background_task
@@ -21,102 +40,48 @@ import mimetypes
 mimetypes.add_type('application/wasm', '.wasm')
 
 PORT = int(os.environ.get("PORT", 3000))
+_server_start_time = time.time() if 'time' in dir() else 0
+
+# ─── Simple in-memory rate limiter ───
+_rate_limit_store = {}
+_RATE_LIMIT_WINDOW = 60  # seconds
+_RATE_LIMIT_MAX = 30     # max requests per window per IP
+
+def _check_rate_limit(client_ip):
+    now = time.time()
+    entry = _rate_limit_store.get(client_ip)
+    if entry and now - entry["start"] < _RATE_LIMIT_WINDOW:
+        if entry["count"] >= _RATE_LIMIT_MAX:
+            return False
+        entry["count"] += 1
+    else:
+        _rate_limit_store[client_ip] = {"start": now, "count": 1}
+    return True
 
 
 class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
+    # File extensions that should be cached aggressively
+    _CACHEABLE_EXTS = {'.css', '.js', '.wasm', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.json'}
+    # Content types worth compressing
+    _COMPRESSIBLE_CTYPES = {'text/html', 'text/css', 'text/javascript', 'application/javascript',
+                            'application/json', 'image/svg+xml', 'text/plain', 'application/wasm'}
+
     def do_GET(self):
-        if self.path.startswith("/api/nearby"):
-            try:
-                places = handle_api_nearby_logic(self.path)
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(places).encode("utf-8"))
-            except ValueError:
-                self.send_response(400)
-                self.end_headers()
-                self.wfile.write(b'{"error": "Invalid parameters"}')
-        elif self.path.startswith("/api/bortle"):
-            try:
-                query_components = urllib.parse.parse_qs(
-                    urllib.parse.urlparse(self.path).query
-                )
-                lat = float(query_components.get("lat", ["0"])[0])
-                lon = float(query_components.get("lon", ["0"])[0])
-                if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-                    raise ValueError("Invalid coordinates")
-                data = handle_api_bortle_logic(lat, lon)
-                self.send_response(200)
+        # Rate limit check
+        if self.path.startswith("/api/"):
+            client_ip = self.client_address[0]
+            if not _check_rate_limit(client_ip):
+                self.send_response(429)
                 self.send_header("Content-type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            except ValueError:
-                self.send_response(400)
-                self.end_headers()
-                self.wfile.write(b'{"error": "Invalid parameters"}')
-        elif self.path.startswith("/api/satellite-cloud"):
-            try:
-                query_components = urllib.parse.parse_qs(
-                    urllib.parse.urlparse(self.path).query
-                )
-                lat = float(query_components.get("lat", ["0"])[0])
-                lon = float(query_components.get("lon", ["0"])[0])
-                if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-                    raise ValueError("Invalid coordinates")
-                data = handle_api_satellite_cloud_logic(lat, lon)
-                self.send_response(200)
-                self.send_header("Content-type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            except ValueError:
-                self.send_response(400)
-                self.end_headers()
-                self.wfile.write(b'{"error": "Invalid parameters"}')
-        elif self.path.startswith("/api/tile/"):
-            try:
-                img_data = handle_api_tile_logic(self.path)
-                self.send_response(200)
-                self.send_header("Content-type", "image/png")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Cache-Control", "public, max-age=86400")
-                self.end_headers()
-                self.wfile.write(img_data)
-            except Exception as e:
-                print("Proxy failed:", e)
-                self.send_response(404)
-                self.end_headers()
-        elif self.path == "/api/favorites":
-            try:
-                data = "[]"
-                if os.path.exists("favorites.json"):
-                    with open("favorites.json", "r") as f:
-                        data = f.read()
-                self.send_response(200)
-                self.send_header("Content-type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                self.wfile.write(data.encode("utf-8"))
-            except Exception:
-                self.send_response(500)
-                self.end_headers()
-                self.wfile.write(b'{"error": "Failed to read"}')
-        elif self.path == "/api/curated_spots":
-            try:
-                data = "[]"
-                if os.path.exists("backend/curated_spots.json"):
-                    with open("backend/curated_spots.json", "r") as f:
-                        data = f.read()
-                self.send_response(200)
-                self.send_header("Content-type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                self.wfile.write(data.encode("utf-8"))
-            except Exception:
-                self.send_response(500)
-                self.end_headers()
-                self.wfile.write(b'{"error": "Failed to read"}')
+                self.wfile.write(b'{"error": "Too many requests. Slow down."}')
+                return
+
+        # Route API calls through the registry
+        handler = find_route(self.path, "GET")
+        if handler:
+            handler(self)
         else:
             super().do_GET()
 
@@ -135,15 +100,38 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"success": true}')
             except Exception:
                 self.send_response(500)
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(b'{"error": "Failed to save"}')
+        elif self.path == "/api/bortle-batch":
+            content_length = min(int(self.headers.get("Content-Length", 0)), 65536)
+            post_data = self.rfile.read(content_length)
+            try:
+                data = handle_api_bortle_batch_logic(post_data.decode("utf-8"))
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            except Exception as e:
+                print("Bortle batch error:", e)
+                self.send_response(500)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Batch bortle failed"}')
         elif self.path == "/api/settings":
             content_length = min(int(self.headers.get("Content-Length", 0)), 8192)
             post_data = self.rfile.read(content_length)
             try:
-                data = json.loads(post_data.decode("utf-8"))
+                new_data = json.loads(post_data.decode("utf-8"))
+                # Merge into existing settings so we don't lose email/password/keys
+                existing = {}
+                if os.path.exists("settings.json"):
+                    with open("settings.json", "r") as f:
+                        existing = json.load(f)
+                existing.update(new_data)
                 with open("settings.json", "w") as f:
-                    json.dump(data, f)
+                    json.dump(existing, f)
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")
@@ -151,6 +139,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"success": true}')
             except Exception:
                 self.send_response(500)
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(b'{"error": "Failed to save settings"}')
         elif self.path == "/api/test-notification":
@@ -163,6 +152,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"success": true}')
             except Exception:
                 self.send_response(500)
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(b'{"error": "Failed to trigger notification"}')
         else:
@@ -177,10 +167,8 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def end_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header(
-            "Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate"
-        )
+        # No caching — always fetch fresh from server
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
         super().end_headers()
 
     def get_status_color(self, status_code):
@@ -247,6 +235,10 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 def start_server():
+    global _server_start_time
+    _server_start_time = time.time()
+    # Attach _json helper to handler class for route functions
+    CORSRequestHandler._json = _route_json
     load_cities()
     t = threading.Thread(target=favorites_background_task, daemon=True)
     t.start()

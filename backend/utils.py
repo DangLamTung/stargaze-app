@@ -1,14 +1,32 @@
+import gzip
+import json
 import math
 import os
 
-# Globals loaded once
+# Globals loaded lazily
 geonames_cities = []
 tile_cache = {}
 bortle_cache = {}
+_cities_loaded = False
 
 
 def load_cities():
-    global geonames_cities
+    global geonames_cities, _cities_loaded
+    if _cities_loaded:
+        return
+    _cities_loaded = True
+
+    # Try compressed first (Docker build output), fall back to raw text
+    if os.path.exists("cities5000.json.gz"):
+        print("Loading compressed cities5000.json.gz into memory...")
+        try:
+            with gzip.open("cities5000.json.gz", "rt", encoding="utf-8") as f:
+                geonames_cities = json.load(f)
+            print(f"Loaded {len(geonames_cities)} cities (from gzip).")
+            return
+        except Exception as e:
+            print(f"Failed to load gzip: {e}, falling back to text...")
+
     if os.path.exists("cities5000.txt") and not geonames_cities:
         print("Loading Geonames cities5000 dataset into memory...")
         try:

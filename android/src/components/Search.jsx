@@ -32,20 +32,20 @@ export default function Search({ onLocationSelect }) {
       <div className="section-title">
         <span className="title-icon">🔍</span> Search
       </div>
-      <input 
-        type="text" 
-        className="search-input" 
-        placeholder="Search location..." 
+      <input
+        type="text"
+        className="search-input"
+        placeholder="Search location..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      
+
       {results.length > 0 && (
         <div className="search-results visible" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, background: '#1e1e36', border: '1px solid #3a3a5c', borderRadius: '8px' }}>
           {results.map((loc, i) => (
-            <button 
+            <button
               key={i}
-              className="search-item" 
+              className="search-item"
               type="button"
               onClick={() => {
                 onLocationSelect(loc);

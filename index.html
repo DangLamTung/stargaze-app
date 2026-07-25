@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>StarGaze — Stargazing & Sightseeing Planner</title>
     <meta
       name="description"
@@ -26,7 +26,27 @@
     <link rel="stylesheet" href="lib/leaflet.css" />
 
     <!-- App CSS -->
-    <link rel="stylesheet" href="src/styles/main.css?v=3" />
+    <link rel="stylesheet" href="src/styles/main.css?v=22" />
+    <script>
+      // Force clear SW cache on load
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then(function (regs) {
+            regs.forEach(function (r) {
+              r.unregister();
+            });
+          })
+          .then(function () {
+            if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+            }
+            setTimeout(function () {
+              navigator.serviceWorker.register('/sw.js?v=9').catch(function () {});
+            }, 500);
+          });
+      }
+    </script>
 
     <!-- Favicon -->
     <link
@@ -34,6 +54,7 @@
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔭</text></svg>"
     />
   </head>
+
   <body>
     <!-- Full Screen Map Background -->
     <div id="map-background" class="map-background">
@@ -42,180 +63,69 @@
 
     <!-- UI Overlay Layer -->
     <div id="ui-layer" class="ui-layer">
-      <!-- Floating Header -->
+      <!-- Floating Header (Blended Search & Favorites Panel) -->
       <header class="floating-header">
-        <div class="logo">🔭 StarGaze</div>
-        <div class="search-container">
-          <div style="display: flex; gap: 0.5rem; align-items: center">
+        <div class="header-top-row">
+          <div class="logo">🔭</div>
+          <div class="search-container">
             <input
               type="text"
               id="search-input"
               placeholder="Search city or place..."
               autocomplete="off"
               aria-label="Search location"
-              style="flex: 1"
             />
-            <button
-              id="favorite-btn"
-              title="Toggle Favorite"
-              style="
-                background: none;
-                border: none;
-                font-size: 1.5rem;
-                cursor: pointer;
-                color: #cbd5e1;
-                padding: 0.2rem;
-              "
-            >
-              ☆
-            </button>
+            <button id="favorite-btn" title="Toggle Favorite" class="icon-btn">☆</button>
+            <button id="locate-btn" type="button" class="icon-btn" title="My Location">📍</button>
           </div>
-          <div id="search-results" class="search-dropdown" role="listbox"></div>
         </div>
-        <div class="header-actions">
-          <button id="notif-btn" type="button" title="Enable Notifications" class="icon-btn" style="font-size:1rem;">🔔</button>
-          <button id="ar-btn" type="button" title="AR Sky View" class="icon-btn" style="font-size:1.1rem;">📡</button>
-          <button id="settings-btn" type="button" title="Settings" class="icon-btn">⚙️</button>
-          <button id="locate-btn" type="button" class="action-btn"><span class="btn-icon">📍</span> My Location</button>
-        </div>
+        <div id="favorites-list" class="favorites-list"></div>
+        <div id="search-results" class="search-dropdown" role="listbox"></div>
       </header>
-      <div id="favorites-list" class="favorites-list"></div>
+
+      <!-- Floating Action Buttons (Right side) -->
+      <div class="fab-stack">
+        <button id="ar-btn" type="button" title="AR Sky View" class="fab-btn fab-ar">🔮</button>
+        <button id="settings-btn" type="button" title="Settings" class="fab-btn fab-settings">⚙️</button>
+        <button id="notif-btn" type="button" title="Notifications" class="fab-btn fab-notif">🔔</button>
+        <button id="controls-toggle-btn" type="button" title="Map Layers" class="fab-btn fab-layers">🗺️</button>
+      </div>
 
       <!-- Floating Map Controls (Top Right) -->
       <div class="floating-controls glass-card" id="map-layers-control">
-        <button class="controls-toggle-btn" id="controls-toggle-btn" aria-label="Toggle map controls">⚙️</button>
         <div class="controls-inner" id="controls-inner">
-        <!-- Basemap Layer -->
-        <div class="layer-control-group" style="margin-bottom: 0.8rem">
-          <label>🗺️ Basemap:</label>
-          <select id="basemap-select" class="layer-select">
-            <option value="osm">OpenStreetMap (Default)</option>
-            <option value="dark" selected>CartoDB Dark Matter</option>
-            <option value="satellite">ESRI Satellite</option>
-          </select>
-        </div>
+          <!-- Basemap Layer -->
+          <div class="layer-control-group" style="margin-bottom: 0.8rem">
+            <div class="layer-control-row">
+              <label>🗺️ Basemap:</label>
+              <select id="basemap-select" class="layer-select">
+                <option value="osm" selected>OpenStreetMap (Default)</option>
+                <option value="dark">CartoDB Dark Matter</option>
+                <option value="satellite">ESRI Satellite</option>
+                <option value="google-sat">Google Satellite Hybrid</option>
+              </select>
+            </div>
+          </div>
 
-        <!-- Weather / Cloud Layer -->
-        <div class="layer-control-group">
-          <label>☁️ Weather Overlay:</label>
-          <select id="weather-layer-select" class="layer-select">
-            <option value="none">None</option>
-            <option value="satellite" selected>Global Satellite (Himawari/GOES)</option>
-            <option value="nasa">Historical Daily Clouds (NASA GIBS)</option>
-            <option value="radar">Precipitation Radar (RainViewer)</option>
-          </select>
+          <!-- Weather / Cloud Layer -->
+          <div class="layer-control-group">
+            <div class="layer-control-row">
+              <label>☁️ Weather Overlay:</label>
+              <select id="weather-layer-select" class="layer-select">
+                <option value="none">None</option>
+                <option value="satellite" selected>Global Satellite (Himawari/GOES)</option>
+                <option value="nasa">Historical Daily Clouds (NASA GIBS)</option>
+                <option value="radar">Precipitation Radar (RainViewer)</option>
+              </select>
+            </div>
 
-          <div id="satellite-band-control" class="hidden" style="margin-top: 0.5rem; display: flex; gap: 0.4rem">
-            <button
-              id="sat-band-toggle"
-              class="map-control-btn"
-              type="button"
-              style="
-                background: var(--primary);
-                color: white;
-                border: none;
-                border-radius: 5px;
-                padding: 0.25rem 0.5rem;
-                cursor: pointer;
-                font-size: 0.8rem;
-              "
+            <div
+              id="satellite-band-control"
+              style="margin-top: 0.4rem; display: flex; gap: 0.4rem; align-items: center"
             >
-              🌡️ IR
-            </button>
-            <span style="font-size: 0.7rem; color: #aaa; align-self: center">Toggle IR / True-Color</span>
-          </div>
-          <div style="margin-top: 0.3rem">
-            <a
-              id="zoom-earth-link"
-              href="#"
-              target="_blank"
-              rel="noopener"
-              style="font-size: 0.7rem; color: var(--accent-cyan); text-decoration: none"
-              >🌍 Open Zoom Earth</a
-            >
-          </div>
-
-          <div id="nasa-date-control" class="hidden" style="margin-top: 0.5rem">
-            <label style="font-size: 0.75rem; color: #999; display: block; margin-bottom: 0.2rem">Select Date</label>
-            <input
-              type="date"
-              id="nasa-date-picker"
-              style="
-                width: 100%;
-                padding: 0.4rem;
-                border-radius: 4px;
-                background: rgba(0, 0, 0, 0.5);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                color: white;
-                font-size: 0.85rem;
-                color-scheme: dark;
-              "
-            />
-          </div>
-          <label style="font-size: 0.75rem; color: #999; margin-top: 0.4rem; display: block"
-            >Satellite & Radar Opacity</label
-          >
-          <input type="range" id="cloud-opacity-slider" min="0" max="1" step="0.05" value="0.50" style="width: 100%" />
-        </div>
-
-        <!-- Radar Animation Controls -->
-        <div
-          id="animation-controls"
-          class="hidden"
-          style="margin-top: 0.5rem; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 0.5rem"
-        >
-          <div style="display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem">
-            <button
-              class="map-control-btn"
-              id="cloud-animate"
-              type="button"
-              style="
-                background: var(--primary);
-                color: white;
-                border: none;
-                border-radius: 5px;
-                padding: 0.25rem 0.5rem;
-                cursor: pointer;
-                font-size: 0.8rem;
-              "
-            >
-              ▶ Play
-            </button>
-            <input type="range" id="cloud-time-slider" min="0" max="5" value="5" style="flex: 1" />
-          </div>
-          <div style="text-align: right">
-            <span id="cloud-time-label" style="font-size: 0.8rem; color: var(--text-muted)"></span>
-          </div>
-        </div>
-
-        <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 0.6rem 0" />
-
-        <!-- Light Pollution Layer -->
-        <div class="layer-control-group">
-          <label>🌌 Light Pollution:</label>
-          <select id="lp-layer-select" class="layer-select">
-            <option value="none">None</option>
-            <option value="viirs" selected>VIIRS Radiance</option>
-            <option value="bortle">Bortle Scale</option>
-          </select>
-          <div id="lp-controls" class="hidden" style="margin-top: 0.4rem">
-            <label style="font-size: 0.75rem; color: #999; display: block">Light Pollution Map Opacity</label>
-            <input type="range" id="lp-opacity-slider" min="0" max="1" step="0.05" value="0.55" style="width: 100%" />
-            <label
-              style="
-                display: flex;
-                justify-content: space-between;
-                font-size: 0.8rem;
-                margin-top: 0.4rem;
-                color: var(--text-muted);
-              "
-            >
-              <span>📅 Year:</span>
-              <span id="lp-year-label">2023</span>
-            </label>
-            <div style="display: flex; gap: 0.4rem; align-items: center">
               <button
-                id="lp-play-btn"
+                id="sat-band-toggle"
+                class="map-control-btn"
                 type="button"
                 style="
                   background: var(--primary);
@@ -225,57 +135,160 @@
                   padding: 0.25rem 0.5rem;
                   cursor: pointer;
                   font-size: 0.8rem;
-                  white-space: nowrap;
+                "
+              >
+                📷 True-Color
+              </button>
+              <span style="font-size: 0.7rem; color: #aaa">Tap to switch IR / Color</span>
+            </div>
+
+            <div id="nasa-date-control" class="hidden" style="margin-top: 0.4rem">
+              <label style="font-size: 0.75rem; color: #999; display: block; margin-bottom: 0.2rem">Select Date</label>
+              <input
+                type="date"
+                id="nasa-date-picker"
+                style="
+                  width: 100%;
+                  padding: 0.4rem;
+                  border-radius: 4px;
+                  background: rgba(0, 0, 0, 0.5);
+                  border: 1px solid rgba(255, 255, 255, 0.2);
+                  color: white;
+                  font-size: 0.85rem;
+                  color-scheme: dark;
+                "
+              />
+            </div>
+
+            <div id="satellite-opacity-control" style="margin-top: 0.4rem">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem">
+                <label style="font-size: 0.75rem; color: #999">Satellite & Radar Opacity</label>
+                <span
+                  id="cloud-opacity-val"
+                  style="font-size: 0.75rem; color: var(--accent-cyan); font-family: monospace"
+                  >50%</span
+                >
+              </div>
+              <input
+                type="range"
+                id="cloud-opacity-slider"
+                min="0"
+                max="1"
+                step="0.05"
+                value="0.50"
+                style="width: 100%"
+              />
+            </div>
+          </div>
+
+          <!-- Radar Animation Controls -->
+          <div
+            id="animation-controls"
+            class="hidden"
+            style="margin-top: 0.5rem; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 0.5rem"
+          >
+            <div style="display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem">
+              <button
+                class="map-control-btn"
+                id="cloud-animate"
+                type="button"
+                style="
+                  background: var(--primary);
+                  color: white;
+                  border: none;
+                  border-radius: 5px;
+                  padding: 0.25rem 0.5rem;
+                  cursor: pointer;
+                  font-size: 0.8rem;
                 "
               >
                 ▶ Play
               </button>
-              <input type="range" id="lp-year-slider" min="2012" max="2023" step="1" value="2023" style="flex: 1" />
+              <input type="range" id="cloud-time-slider" min="0" max="5" value="5" style="flex: 1" />
+            </div>
+            <div style="text-align: right">
+              <span id="cloud-time-label" style="font-size: 0.8rem; color: var(--text-muted)"></span>
+            </div>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 0.6rem 0" />
+
+          <!-- Light Pollution Layer -->
+          <div class="layer-control-group">
+            <div class="layer-control-row">
+              <label>🌌 Light Pollution:</label>
+              <select id="lp-layer-select" class="layer-select">
+                <option value="none">None</option>
+                <option value="viirs" selected>VIIRS Radiance</option>
+                <option value="bortle">Bortle Scale</option>
+              </select>
+            </div>
+            <div id="lp-controls" style="margin-top: 0.4rem">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem">
+                <label style="font-size: 0.75rem; color: #999">Light Pollution Opacity</label>
+                <span id="lp-opacity-val" style="font-size: 0.75rem; color: var(--accent-cyan); font-family: monospace"
+                  >55%</span
+                >
+              </div>
+              <input type="range" id="lp-opacity-slider" min="0" max="1" step="0.05" value="0.55" style="width: 100%" />
+            </div>
+          </div>
+
+          <!-- Viewing Direction (bearing angle) -->
+          <div
+            class="layer-control-group"
+            id="bearing-control"
+            style="
+              margin-top: 0.5rem;
+              padding-top: 0.5rem;
+              border-top: 1px solid rgba(255, 255, 255, 0.1);
+              display: none;
+            "
+          >
+            <label style="display: flex; justify-content: space-between">
+              <span>🧭 View Angle</span>
+              <span id="bearing-label" style="color: var(--accent-cyan); font-family: monospace">0° N</span>
+            </label>
+            <input
+              type="range"
+              id="bearing-slider"
+              min="0"
+              max="360"
+              value="0"
+              step="5"
+              style="width: 100%; margin-top: 4px"
+            />
+            <div
+              style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #666; margin-top: 2px"
+            >
+              <span>N</span><span>E</span><span>S</span><span>W</span><span>N</span>
+            </div>
+          </div>
+
+          <!-- Curated Spots (inside controls, stacks below on mobile) -->
+          <div
+            id="curated-spots-panel"
+            style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); display: none"
+          >
+            <h4
+              style="
+                margin: 0 0 8px 0;
+                color: #fbbf24;
+                font-family: 'Outfit', sans-serif;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.85rem;
+              "
+            >
+              <span>✨</span> Curated Spots
+            </h4>
+            <div id="curated-spots-list" style="display: flex; flex-direction: column; gap: 6px">
+              <!-- Filled via JS -->
             </div>
           </div>
         </div>
-
-        <!-- Viewing Direction (bearing angle) -->
-        <div class="layer-control-group" id="bearing-control" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: none;">
-          <label style="display: flex; justify-content: space-between;">
-            <span>🧭 View Angle</span>
-            <span id="bearing-label" style="color: var(--accent-cyan); font-family: monospace;">0° N</span>
-          </label>
-          <input type="range" id="bearing-slider" min="0" max="360" value="0" step="5"
-            style="width: 100%; margin-top: 4px;" />
-          <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #666; margin-top: 2px;">
-            <span>N</span><span>E</span><span>S</span><span>W</span><span>N</span>
-          </div>
-        </div>
-
-        <!-- Curated Spots (inside controls, stacks below on mobile) -->
-        <div
-          id="curated-spots-panel"
-          style="
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            display: none;
-          "
-        >
-          <h4
-            style="
-              margin: 0 0 8px 0;
-              color: #fbbf24;
-              font-family: 'Outfit', sans-serif;
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 0.85rem;
-            "
-          >
-            <span>✨</span> Curated Spots
-          </h4>
-          <div id="curated-spots-list" style="display: flex; flex-direction: column; gap: 6px">
-            <!-- Filled via JS -->
-          </div>
-        </div>
-        </div><!-- /controls-inner -->
+        <!-- /controls-inner -->
       </div>
 
       <!-- Information Side Panel (Left) -->
@@ -326,6 +339,25 @@
             <div class="section-title">
               <span class="title-icon">⏱️</span> Sky Condition Right Now
               <span class="now-updated" id="now-updated-time"></span>
+              <select
+                id="weather-model-select"
+                class="model-select"
+                style="
+                  margin-left: auto;
+                  font-size: 0.65rem;
+                  padding: 2px 6px;
+                  border-radius: 6px;
+                  background: rgba(255, 255, 255, 0.06);
+                  border: 1px solid rgba(255, 255, 255, 0.1);
+                  color: #94a3b8;
+                "
+              >
+                <option value="best_match">🤖 Best Match</option>
+                <option value="ecmwf_ifs">🌍 ECMWF 9km</option>
+                <option value="gfs_seamless">🇺🇸 GFS 22km</option>
+                <option value="icon_seamless">🇩🇪 ICON 13km</option>
+                <option value="gem_seamless">🇨🇦 GEM 15km</option>
+              </select>
             </div>
             <div class="now-score-layout">
               <!-- Gauge -->
@@ -346,6 +378,7 @@
                     <span class="now-metric-icon">☁️</span>
                     <span class="now-metric-label">Cloud Cover</span>
                     <span class="now-metric-value" id="now-cloud-pct">--</span>
+                    <span class="now-metric-sub" id="now-cloud-base"></span>
                   </div>
                   <div class="now-metric">
                     <span class="now-metric-icon">💧</span>
@@ -378,24 +411,30 @@
                     <div class="now-trend-confidence-fill" id="now-trend-confidence" style="width: 0%"></div>
                   </div>
                   <div class="now-trend-confidence-label">Trend confidence</div>
-                  <div class="now-predicted-hours" id="now-predicted-hours">
-                    <div class="now-pred-item">
-                      <span class="now-pred-label">+1h</span>
-                      <span class="now-pred-cloud">--</span>
-                    </div>
-                    <div class="now-pred-item">
-                      <span class="now-pred-label">+2h</span>
-                      <span class="now-pred-cloud">--</span>
-                    </div>
-                    <div class="now-pred-item">
-                      <span class="now-pred-label">+3h</span>
-                      <span class="now-pred-cloud">--</span>
-                    </div>
-                  </div>
+                  <div class="now-predicted-hours" id="now-predicted-hours"></div>
+                </div>
+                <!-- Next 12 Hours strip -->
+                <div class="hourly-strip">
+                  <div class="hourly-strip-title">⏰ Next 12 Hours</div>
+                  <div class="hourly-strip-items" id="hourly-strip-items"></div>
                 </div>
                 <div class="now-consensus" id="now-consensus">
                   <div class="now-consensus-title">📊 Source comparison</div>
                 </div>
+                <!-- DSO / Milky Way recommendation -->
+                <div
+                  id="now-recommendation"
+                  style="
+                    margin-top: 12px;
+                    padding: 10px 12px;
+                    background: rgba(0, 212, 255, 0.04);
+                    border: 1px solid rgba(0, 212, 255, 0.08);
+                    border-radius: 8px;
+                    font-size: 0.72rem;
+                    color: #94a3b8;
+                    line-height: 1.6;
+                  "
+                ></div>
               </div>
             </div>
           </section>
@@ -440,8 +479,95 @@
             </div>
             <div class="sky-map-wrapper">
               <div id="sky-map-container"></div>
-              <div class="sky-controls">
-                <span class="sky-info">Interactive sky chart. Drag to pan.</span>
+              <div id="sky-controls" class="sky-controls">
+                <!-- Clock & Moon info bar -->
+                <div class="sky-info-bar">
+                  <span id="sky-realtime">--</span>
+                  <span id="sky-moon">--</span>
+                </div>
+
+                <!-- Azimuth slider -->
+                <div class="sky-ctrl-row">
+                  <span>⟳</span>
+                  <input type="range" id="sky-azimuth" min="0" max="360" value="0" />
+                  <span class="sky-ctrl-val" id="sky-az-val">0°</span>
+                </div>
+
+                <!-- Stellarium-style Time/Date Control -->
+                <div class="sky-time-panel">
+                  <!-- Single row: Date columns | ⏮ ▶ | Time columns -->
+                  <div class="sky-stel-row">
+                    <div class="sky-col">
+                      <button class="sky-adj-btn" id="sky-yr-up">▲</button>
+                      <span id="sky-yr" class="sky-col-val">2026</span>
+                      <button class="sky-adj-btn" id="sky-yr-down">▼</button>
+                    </div>
+                    <span class="sky-dash">-</span>
+                    <div class="sky-col">
+                      <button class="sky-adj-btn" id="sky-mo-up">▲</button>
+                      <span id="sky-mo" class="sky-col-val">07</span>
+                      <button class="sky-adj-btn" id="sky-mo-down">▼</button>
+                    </div>
+                    <span class="sky-dash">-</span>
+                    <div class="sky-col">
+                      <button class="sky-adj-btn" id="sky-dy-up">▲</button>
+                      <span id="sky-dy" class="sky-col-val">14</span>
+                      <button class="sky-adj-btn" id="sky-dy-down">▼</button>
+                    </div>
+
+                    <div class="sky-playback">
+                      <button class="sky-play-btn" id="sky-btn-reset" title="Step back">⏮</button>
+                      <button class="sky-play-btn" id="sky-btn-pause" title="Play / Pause">▶</button>
+                    </div>
+
+                    <div class="sky-col">
+                      <button class="sky-adj-btn" id="sky-h-up">▲</button>
+                      <span id="sky-h" class="sky-col-val">--</span>
+                      <button class="sky-adj-btn" id="sky-h-down">▼</button>
+                    </div>
+                    <span class="sky-colon">:</span>
+                    <div class="sky-col">
+                      <button class="sky-adj-btn" id="sky-m-up">▲</button>
+                      <span id="sky-m" class="sky-col-val">--</span>
+                      <button class="sky-adj-btn" id="sky-m-down">▼</button>
+                    </div>
+                    <span class="sky-colon">:</span>
+                    <div class="sky-col">
+                      <button class="sky-adj-btn" id="sky-s-up">▲</button>
+                      <span id="sky-s" class="sky-col-val">--</span>
+                      <button class="sky-adj-btn" id="sky-s-down">▼</button>
+                    </div>
+                  </div>
+
+                  <!-- Daylight slider with moon markers -->
+                  <div class="sky-daylight-row" id="sky-daylight-row">
+                    <span class="sky-daylight-icon">☀</span>
+                    <div class="sky-slider-wrap">
+                      <span class="sky-moon-marker" id="sky-moon-rise-marker" title="Moon rise">🌙↑</span>
+                      <input
+                        type="range"
+                        id="sky-time"
+                        min="0"
+                        max="1439"
+                        value="0"
+                        step="1"
+                        class="sky-daylight-slider"
+                      />
+                      <span class="sky-moon-marker" id="sky-moon-set-marker" title="Moon set">🌙↓</span>
+                    </div>
+                    <span class="sky-daylight-icon">☀️</span>
+                  </div>
+                  <div class="sky-daylight-subtitle" id="sky-daylight-subtitle">Daylight</div>
+                </div>
+
+                <!-- Toggle buttons -->
+                <div class="sky-toggle-row">
+                  <button class="sky-toggle active" id="sky-btn-ground" onclick="window._skyTg('ground')">🏔️</button>
+                  <button class="sky-toggle" id="sky-btn-atmo" onclick="window._skyTg('atmo')">🌫️</button>
+                  <button class="sky-toggle active" id="sky-btn-labels" onclick="window._skyTg('labels')">🔤</button>
+                  <button class="sky-toggle" id="sky-btn-ecliptic" onclick="window._skyTg('ecliptic')">☀️</button>
+                  <button class="sky-toggle" id="sky-btn-grid" onclick="window._skyTg('grid')">📐</button>
+                </div>
               </div>
             </div>
           </section>
@@ -486,12 +612,26 @@
                   />
                 </div>
               </div>
-              <div class="param-row" style="flex: 1; display: flex; align-items: center; gap: 0.5rem;">
-                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.85rem; color: #ccc;">
-                  <input type="checkbox" id="nearby-same-country" checked style="cursor: pointer; accent-color: var(--primary);" />
+              <div class="param-row" style="flex: 1; display: flex; align-items: center; gap: 0.5rem">
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 0.4rem;
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                    color: #ccc;
+                  "
+                >
+                  <input
+                    type="checkbox"
+                    id="nearby-same-country"
+                    checked
+                    style="cursor: pointer; accent-color: var(--primary)"
+                  />
                   🌏 Same country/region only
                 </label>
-                <span id="nearby-country-hint" style="font-size: 0.7rem; color: #666;"></span>
+                <span id="nearby-country-hint" style="font-size: 0.7rem; color: #666"></span>
               </div>
               <button
                 id="btn-find-nearby"
@@ -580,7 +720,7 @@
               </div>
               <div style="display: flex; gap: 0.5rem">
                 <div style="display: flex; flex-direction: column; gap: 0.3rem; flex: 1">
-                  <label style="font-size: 0.8rem; color: #aaa; font-weight: 500">🌌 Max Bortle</label>
+                  <label>🌌 Max Bortle</label>
                   <select
                     id="filter-bortle"
                     style="
@@ -603,7 +743,7 @@
                   </select>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.3rem; flex: 1">
-                  <label style="font-size: 0.8rem; color: #aaa; font-weight: 500">☁️ Clouds</label>
+                  <label>☁️ Clouds</label>
                   <select
                     id="filter-clouds"
                     style="
@@ -626,7 +766,7 @@
                 </div>
               </div>
               <div style="display: flex; flex-direction: column; gap: 0.3rem">
-                <label style="font-size: 0.8rem; color: #aaa; font-weight: 500">🔢 Sort By</label>
+                <label>🔢 Sort By</label>
                 <select
                   id="filter-sort"
                   style="
@@ -667,22 +807,10 @@
           <section id="charts-section" class="charts-section animate-in">
             <div class="section-title"><span class="title-icon">📊</span> Weather Charts</div>
             <div class="chart-tabs" style="flex-wrap: wrap; gap: 0.5rem">
-              <button
-                class="chart-tab active"
-                data-chart="cloud-cover"
-                style="padding: 0.3rem 0.5rem; font-size: 0.8rem"
-              >
-                ☁️ Clouds
-              </button>
-              <button class="chart-tab" data-chart="temperature" style="padding: 0.3rem 0.5rem; font-size: 0.8rem">
-                🌡️ Temp
-              </button>
-              <button class="chart-tab" data-chart="humidity" style="padding: 0.3rem 0.5rem; font-size: 0.8rem">
-                💧 Humid
-              </button>
-              <button class="chart-tab" data-chart="visibility" style="padding: 0.3rem 0.5rem; font-size: 0.8rem">
-                👁️ Vis
-              </button>
+              <button class="chart-tab active" data-chart="cloud-cover">☁️ Clouds</button>
+              <button class="chart-tab" data-chart="temperature">🌡️ Temp</button>
+              <button class="chart-tab" data-chart="humidity">💧 Humid</button>
+              <button class="chart-tab" data-chart="visibility">👁️ Vis</button>
             </div>
             <div id="panel-cloud-cover" class="chart-panel active">
               <div class="chart-container"><canvas id="chart-cloud-cover"></canvas></div>
@@ -697,12 +825,103 @@
               <div class="chart-container"><canvas id="chart-visibility"></canvas></div>
             </div>
           </section>
+
+          <!-- Tide & Sea -->
+          <section id="tide-section" class="glass-card animate-in">
+            <div class="section-title" style="display: flex; align-items: center; gap: 0.5rem">
+              <span class="title-icon">🌊</span> Tide & Sea
+              <span id="tide-station" style="font-size: 0.7rem; color: #64748b"></span>
+            </div>
+            <div style="display: flex; gap: 0.4rem; margin-bottom: 0.5rem; align-items: center">
+              <select
+                id="tide-station-select"
+                style="
+                  flex: 1;
+                  padding: 0.4rem 0.5rem;
+                  border-radius: 6px;
+                  background: rgba(0, 0, 0, 0.4);
+                  border: 1px solid rgba(255, 255, 255, 0.15);
+                  color: #e2e8f0;
+                  font-size: 0.75rem;
+                  outline: none;
+                  max-width: 200px;
+                "
+              >
+                <option value="">📍 Auto (nearest)</option>
+              </select>
+            </div>
+            <div style="position: relative; margin-bottom: 0.5rem">
+              <input
+                type="text"
+                id="tide-search-input"
+                placeholder="🔍 Search beach or coastal location..."
+                autocomplete="off"
+                style="
+                  width: 100%;
+                  padding: 0.5rem 0.8rem;
+                  border-radius: 6px;
+                  background: rgba(0, 0, 0, 0.4);
+                  border: 1px solid rgba(255, 255, 255, 0.1);
+                  color: #e2e8f0;
+                  font-size: 0.8rem;
+                  outline: none;
+                "
+              />
+              <div id="tide-search-dropdown" class="tide-search-dropdown"></div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem">
+              <div
+                style="
+                  flex: 1;
+                  min-width: 90px;
+                  background: rgba(0, 0, 0, 0.3);
+                  border-radius: 6px;
+                  padding: 6px 8px;
+                  text-align: center;
+                "
+              >
+                <div>NOW</div>
+                <div id="tide-now-label">--</div>
+              </div>
+              <div
+                style="
+                  flex: 1;
+                  min-width: 90px;
+                  background: rgba(0, 0, 0, 0.3);
+                  border-radius: 6px;
+                  padding: 6px 8px;
+                  text-align: center;
+                "
+              >
+                <div>NEXT</div>
+                <div id="tide-next-label">--</div>
+              </div>
+              <div
+                style="
+                  flex: 1;
+                  min-width: 90px;
+                  background: rgba(0, 0, 0, 0.3);
+                  border-radius: 6px;
+                  padding: 6px 8px;
+                  text-align: center;
+                "
+              >
+                <div>SEA</div>
+                <div id="tide-sea-label">--</div>
+              </div>
+            </div>
+            <div class="tide-chart-wrap" id="tide-chart-wrap">
+              <canvas id="tide-chart-canvas"></canvas>
+            </div>
+            <div id="tide-table" style="max-height: 180px; overflow-y: auto; margin-top: 0.5rem"></div>
+            <div id="tide-source" style="font-size: 9px; color: #64748b; text-align: center; margin-top: 0.5rem"></div>
+          </section>
         </div>
         <!-- /content-sections -->
 
         <!-- Footer -->
         <footer style="margin-top: 2rem; border-top: 1px solid var(--border-glass); padding-top: 1rem">
-          <p style="font-size: 0.75rem; color: var(--text-muted)">🔭 StarGaze — Weather by Open-Meteo, Map by CARTO.</p>
+          <p style="font-size: 0.75rem; color: var(--text-muted)">🔭 StarGaze</p>
         </footer>
       </aside>
     </div>
@@ -763,11 +982,101 @@
             <option value="14400" selected>4 Hours (Recommended)</option>
           </select>
         </div>
-        <div style="margin-top: 16px; padding: 12px; background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.15); border-radius: 8px;">
-          <div style="font-size: 0.8rem; color: #00ff88; margin-bottom: 6px;">🔔 Notifications</div>
-          <div id="settings-notif-status" style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 8px;">Checking...</div>
-          <button id="settings-notif-btn" class="btn-submit" style="font-size: 0.75rem; padding: 6px 14px; width: 100%;">Request Permission</button>
-          <button id="settings-test-notif-btn" class="btn-submit" style="font-size: 0.75rem; padding: 6px 14px; width: 100%; margin-top: 6px; background: rgba(0,212,255,0.15); border-color: rgba(0,212,255,0.3); color: #00d4ff;">🧪 Send Test Notification</button>
+        <div
+          style="
+            margin-top: 16px;
+            padding: 12px;
+            background: rgba(255, 170, 0, 0.05);
+            border: 1px solid rgba(255, 170, 0, 0.15);
+            border-radius: 8px;
+          "
+        >
+          <div style="display: flex; align-items: center; justify-content: space-between">
+            <div>
+              <div style="font-size: 0.8rem; color: #f80; margin-bottom: 2px">☁️ AccuWeather</div>
+              <div style="font-size: 0.65rem; color: #64748b">Paid — most accurate cloud cover. Costs per request.</div>
+            </div>
+            <label
+              class="accu-toggle"
+              style="
+                position: relative;
+                display: inline-block;
+                width: 48px;
+                height: 26px;
+                flex-shrink: 0;
+                margin-left: 12px;
+                cursor: pointer;
+              "
+            >
+              <input
+                type="checkbox"
+                id="settings-accuweather"
+                style="opacity: 0; width: 0; height: 0; position: absolute"
+              />
+              <span
+                class="accu-slider"
+                style="
+                  position: absolute;
+                  cursor: pointer;
+                  inset: 0;
+                  background: rgba(255, 255, 255, 0.12);
+                  border-radius: 26px;
+                  transition: background 0.3s;
+                "
+              ></span>
+              <span
+                class="accu-knob"
+                style="
+                  position: absolute;
+                  height: 20px;
+                  width: 20px;
+                  left: 3px;
+                  bottom: 3px;
+                  background: #fff;
+                  border-radius: 50%;
+                  transition: transform 0.3s;
+                  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+                "
+              ></span>
+            </label>
+            <span
+              id="accu-status-label"
+              style="font-size: 0.7rem; color: #64748b; min-width: 28px; text-align: right; flex-shrink: 0"
+              >OFF</span
+            >
+          </div>
+        </div>
+        <div
+          style="
+            margin-top: 16px;
+            padding: 12px;
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            border-radius: 8px;
+          "
+        >
+          <div style="font-size: 0.8rem; color: #00ff88; margin-bottom: 6px">🔔 Notifications</div>
+          <div id="settings-notif-status" style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 8px">
+            Checking...
+          </div>
+          <button id="settings-notif-btn" class="btn-submit" style="font-size: 0.75rem; padding: 6px 14px; width: 100%">
+            Request Permission
+          </button>
+          <button
+            id="settings-test-notif-btn"
+            class="btn-submit"
+            style="
+              font-size: 0.75rem;
+              padding: 6px 14px;
+              width: 100%;
+              margin-top: 6px;
+              background: rgba(0, 212, 255, 0.15);
+              border-color: rgba(0, 212, 255, 0.3);
+              color: #00d4ff;
+            "
+          >
+            🧪 Send Test Notification
+          </button>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 24px">
           <button id="save-settings-btn" class="btn-submit">Save Settings</button>
@@ -787,57 +1096,289 @@
     <!-- Scripts -->
     <script src="lib/leaflet.js"></script>
     <script src="lib/chart.js"></script>
+    <script src="lib/chartjs-plugin-zoom.js"></script>
     <!-- Hidden preload container for Stellarium (cached before AR opens) -->
-    <div id="ar-preload" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none;"></div>
+    <div
+      id="ar-preload"
+      style="
+        position: fixed;
+        top: -9999px;
+        left: -9999px;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        pointer-events: none;
+      "
+    ></div>
 
     <!-- AR Mode Overlay -->
     <div id="ar-overlay" class="ar-overlay hidden">
       <video id="ar-video" autoplay playsinline muted></video>
+      <div
+        id="ar-dark-backdrop"
+        style="position: absolute; inset: 0; background: #020618; pointer-events: none; opacity: 0; z-index: 1"
+      ></div>
       <canvas id="ar-sky" class="ar-sky-container"></canvas>
       <div class="ar-hud">
         <!-- Center compass rose -->
         <div class="ar-compass" id="ar-compass-ring">
           <div class="ar-compass-face">
-            <div class="ar-compass-tick" style="transform:rotate(0deg)"><span>N</span></div>
-            <div class="ar-compass-tick" style="transform:rotate(30deg)"></div>
-            <div class="ar-compass-tick" style="transform:rotate(60deg)"></div>
-            <div class="ar-compass-tick" style="transform:rotate(90deg)"><span>E</span></div>
-            <div class="ar-compass-tick" style="transform:rotate(120deg)"></div>
-            <div class="ar-compass-tick" style="transform:rotate(150deg)"></div>
-            <div class="ar-compass-tick" style="transform:rotate(180deg)"><span>S</span></div>
-            <div class="ar-compass-tick" style="transform:rotate(210deg)"></div>
-            <div class="ar-compass-tick" style="transform:rotate(240deg)"></div>
-            <div class="ar-compass-tick" style="transform:rotate(270deg)"><span>W</span></div>
-            <div class="ar-compass-tick" style="transform:rotate(300deg)"></div>
-            <div class="ar-compass-tick" style="transform:rotate(330deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(0deg)"><span>N</span></div>
+            <div class="ar-compass-tick" style="transform: rotate(30deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(60deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(90deg)"><span>E</span></div>
+            <div class="ar-compass-tick" style="transform: rotate(120deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(150deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(180deg)"><span>S</span></div>
+            <div class="ar-compass-tick" style="transform: rotate(210deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(240deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(270deg)"><span>W</span></div>
+            <div class="ar-compass-tick" style="transform: rotate(300deg)"></div>
+            <div class="ar-compass-tick" style="transform: rotate(330deg)"></div>
           </div>
           <div class="ar-compass-needle"></div>
         </div>
         <!-- Center crosshair -->
         <div class="ar-crosshair">➕</div>
+        <!-- Camera lens indicator -->
+        <div class="ar-lens-indicator" id="ar-lens-indicator">
+          <div class="ar-lens-ring" id="ar-lens-ring"></div>
+          <div class="ar-lens-info">
+            <span class="ar-lens-mm" id="ar-lens-mm">50mm</span>
+            <span class="ar-lens-label" id="ar-lens-label">NORMAL</span>
+            <span class="ar-lens-fov" id="ar-lens-fov">f/40°</span>
+          </div>
+        </div>
         <!-- Controls: sliders + toggles -->
         <div class="ar-controls" id="ar-controls">
+          <button class="ar-controls-toggle" id="ar-controls-toggle" title="Hide controls">▲</button>
+          <!-- Sky opacity -->
           <div class="ar-slider-row">
-            <input type="range" id="ar-opacity" min="20" max="100" value="92" />
+            <label>Sky</label>
+            <input type="range" id="ar-opacity" min="5" max="100" value="92" />
             <span class="ar-ctrl-val" id="ar-opacity-val">92%</span>
           </div>
+          <!-- Sky brightness boost -->
           <div class="ar-slider-row">
-            <input type="range" id="ar-time" min="-168" max="168" value="0" step="1" />
-            <span class="ar-ctrl-val" id="ar-time-val">now</span>
+            <label>Glow</label>
+            <input type="range" id="ar-brightness" min="100" max="400" value="150" />
+            <span class="ar-ctrl-val" id="ar-brightness-val">1.5×</span>
           </div>
+          <!-- Time/Date panel (same as sky map) -->
+          <div class="ar-time-panel">
+            <div class="sky-stel-row" style="gap: 0; font-size: 11px">
+              <div class="sky-col" style="min-width: 24px">
+                <button class="sky-adj-btn ar-adj-btn" id="ar-yr-up">▲</button>
+                <span id="ar-yr" class="sky-col-val" style="font-size: 10px; min-width: 24px">2026</span>
+                <button class="sky-adj-btn ar-adj-btn" id="ar-yr-down">▼</button>
+              </div>
+              <span class="sky-dash" style="font-size: 9px">-</span>
+              <div class="sky-col">
+                <button class="sky-adj-btn ar-adj-btn" id="ar-mo-up">▲</button>
+                <span id="ar-mo" class="sky-col-val">--</span>
+                <button class="sky-adj-btn ar-adj-btn" id="ar-mo-down">▼</button>
+              </div>
+              <span class="sky-dash" style="font-size: 9px">-</span>
+              <div class="sky-col">
+                <button class="sky-adj-btn ar-adj-btn" id="ar-dy-up">▲</button>
+                <span id="ar-dy" class="sky-col-val">--</span>
+                <button class="sky-adj-btn ar-adj-btn" id="ar-dy-down">▼</button>
+              </div>
+              <div class="sky-col">
+                <button class="sky-adj-btn ar-adj-btn" id="ar-h-up">▲</button>
+                <span id="ar-h" class="sky-col-val">--</span>
+                <button class="sky-adj-btn ar-adj-btn" id="ar-h-down">▼</button>
+              </div>
+              <span class="sky-colon" style="font-size: 10px">:</span>
+              <div class="sky-col">
+                <button class="sky-adj-btn ar-adj-btn" id="ar-m-up">▲</button>
+                <span id="ar-m" class="sky-col-val">--</span>
+                <button class="sky-adj-btn ar-adj-btn" id="ar-m-down">▼</button>
+              </div>
+              <span class="sky-colon" style="font-size: 10px">:</span>
+              <div class="sky-col">
+                <button class="sky-adj-btn ar-adj-btn" id="ar-s-up">▲</button>
+                <span id="ar-s" class="sky-col-val">--</span>
+                <button class="sky-adj-btn ar-adj-btn" id="ar-s-down">▼</button>
+              </div>
+            </div>
+            <!-- Moonlight slider -->
+            <div style="display: flex; align-items: center; gap: 4px; padding: 2px 0">
+              <span>☀</span>
+              <div style="position: relative; flex: 1; display: flex; align-items: center">
+                <span class="sky-moon-marker" id="ar-moon-rise-marker" title="Moon rise">🌙↑</span>
+                <span
+                  style="
+                    position: absolute;
+                    left: 50%;
+                    top: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 1px;
+                    height: 14px;
+                    background: rgba(255, 255, 255, 0.4);
+                    pointer-events: none;
+                    z-index: 1;
+                  "
+                  title="Midnight"
+                ></span>
+                <input
+                  type="range"
+                  id="ar-daylight"
+                  min="0"
+                  max="1439"
+                  value="720"
+                  step="1"
+                  style="
+                    flex: 1;
+                    height: 6px;
+                    -webkit-appearance: none;
+                    background: linear-gradient(
+                      90deg,
+                      #87ceeb 0%,
+                      #87ceeb 22%,
+                      #f90 22%,
+                      #f90 28%,
+                      #0d1428 28%,
+                      #0d1428 72%,
+                      #f90 72%,
+                      #f90 78%,
+                      #87ceeb 78%,
+                      #87ceeb 100%
+                    );
+                    border-radius: 3px;
+                    outline: none;
+                  "
+                />
+                <span class="sky-moon-marker" id="ar-moon-set-marker" title="Moon set">🌙↓</span>
+              </div>
+              <span>☀</span>
+            </div>
+            <div style="text-align: center; font-size: 8px; color: #556; padding: 0 0 2px" id="ar-moon-subtitle">
+              --
+            </div>
+          </div>
+          <!-- Bortle live status & Auto-match -->
+          <!-- Toggles -->
           <div class="ar-toggle-row">
-            <button id="ar-btn-atmo" class="ar-toggle-btn">🌅</button>
-            <button id="ar-btn-ground" class="ar-toggle-btn active">⛰️</button>
-            <button id="ar-btn-grid" class="ar-toggle-btn">📐</button>
+            <button id="ar-btn-atmo" class="ar-toggle-btn" title="Atmosphere: blue sky glow">🌅</button>
+            <button id="ar-btn-ground" class="ar-toggle-btn active" title="Ground & landscape">⛰️</button>
+            <button id="ar-btn-grid" class="ar-toggle-btn" title="Grid lines: RA/Dec & Az/Alt">📐</button>
+            <button id="ar-btn-mask" class="ar-toggle-btn" title="Horizon mask: hide stars below ground line">
+              🌓
+            </button>
+          </div>
+          <div class="ar-bortle-row" style="display: flex; align-items: center; gap: 6px; margin: 2px 0">
+            <span
+              id="ar-bortle-display"
+              class="ar-bortle-badge"
+              style="
+                background: rgba(0, 255, 136, 0.12);
+                color: #0f0;
+                border-radius: 3px;
+                padding: 1px 6px;
+                font-size: 10px;
+              "
+              >Bortle: --</span
+            >
           </div>
         </div>
         <!-- Close button -->
         <button class="ar-close-btn" id="ar-close-btn">✕</button>
-        <!-- Debug text -->
-        <div id="ar-debug"></div>
+        <!-- Calibrate heading -->
+        <button class="ar-calibrate-btn" id="ar-calibrate-btn" title="Calibrate heading">🧭</button>
+        <!-- Capture photo -->
+        <button class="ar-capture-btn" id="ar-capture-btn" title="Capture sky photo">📸</button>
+        <!-- Camera settings button (top-left, below lens) -->
+        <button class="ar-cam-settings-btn" id="ar-cam-settings-btn" title="Camera: exposure, ISO, WB, zoom">⚙</button>
+        <!-- Camera settings panel -->
+        <div class="ar-cam-panel hidden" id="ar-cam-panel">
+          <div class="ar-cam-panel-bg"></div>
+          <div class="ar-cam-card">
+            <div class="ar-cam-title">📷 Camera Settings</div>
+            <div class="ar-cam-row">
+              <span>🔆 Exposure</span>
+              <input type="range" id="ar-exp" min="-6" max="6" value="0" step="0.5" />
+              <span class="ar-cam-val" id="ar-exp-val">0</span>
+            </div>
+            <div class="ar-cam-row">
+              <span>🌡️ ISO</span>
+              <input type="range" id="ar-iso" min="50" max="3200" value="0" step="50" />
+              <span class="ar-cam-val" id="ar-iso-val">Auto</span>
+            </div>
+            <div class="ar-cam-row">
+              <span>🎨 WB</span>
+              <input type="range" id="ar-wb" min="2800" max="7500" value="0" step="100" />
+              <span class="ar-cam-val" id="ar-wb-val">Auto</span>
+            </div>
+            <div class="ar-cam-row">
+              <span>🔍 Zoom</span>
+              <input type="range" id="ar-zoom" min="1" max="8" value="1" step="0.1" />
+              <span class="ar-cam-val" id="ar-zoom-val">1×</span>
+            </div>
+            <div class="ar-cam-actions">
+              <button id="ar-flip-cam">🔄 Flip Camera</button>
+              <button id="ar-cam-close">Close</button>
+            </div>
+          </div>
+        </div>
+        <!-- Bortle sky darkness measure -->
+        <button class="ar-bortle-btn" id="ar-bortle-btn" title="Measure sky darkness (Bortle)">🌑</button>
+        <!-- Bortle guided capture overlay -->
+        <div class="ar-bortle-overlay hidden" id="ar-bortle-overlay">
+          <div class="ar-bortle-overlay-bg"></div>
+          <div class="ar-bortle-card">
+            <div class="ar-bortle-title">🌌 Estimate Sky Darkness</div>
+            <p class="ar-bortle-hint" id="ar-bortle-hint">
+              Point your camera at a clear patch of sky (no clouds, no streetlights). Then tap Measure.
+            </p>
+            <div class="ar-bortle-result" id="ar-bortle-result">
+              <span class="ar-bortle-class" id="ar-bortle-class">B4</span>
+              <span class="ar-bortle-label" id="ar-bortle-label">Rural sky</span>
+            </div>
+            <div class="ar-bortle-sample" id="ar-bortle-sample"></div>
+            <div class="ar-bortle-actions">
+              <button class="ar-bortle-measure" id="ar-bortle-measure">📸 Measure</button>
+              <button class="ar-bortle-close" id="ar-bortle-close">Close</button>
+            </div>
+          </div>
+        </div>
+        <!-- Debug -->
+        <div
+          id="ar-debug"
+          style="
+            display: none;
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            z-index: 30;
+            pointer-events: none;
+            color: #0f0;
+            font-size: 10px;
+            font-family: monospace;
+            max-width: 280px;
+          "
+        ></div>
+        <span
+          id="ar-frame-status"
+          style="
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            pointer-events: none;
+            font-family: monospace;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.5);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+          "
+        ></span>
       </div>
     </div>
 
-    <script type="module" src="src/ui/app.js?v=6"></script>
+    <script type="module" src="src/ui/app.js?v=39"></script>
   </body>
 </html>

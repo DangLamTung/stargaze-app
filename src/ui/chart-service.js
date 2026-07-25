@@ -73,19 +73,31 @@ const todayLinePlugin = {
 Chart.register(todayLinePlugin);
 
 function getHourlyData(hourly) {
-  return hourly.map(h => ({
-    date: h.time,
-    label: new Date(h.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' }),
-    temp: h.temperature,
-    humidity: h.humidity,
-    cloudCover: h.cloudCover,
-    cloudCoverLow: h.cloudCoverLow,
-    cloudCoverMid: h.cloudCoverMid,
-    cloudCoverHigh: h.cloudCoverHigh,
-    visibility: h.visibility,
-    windSpeed: h.windSpeed,
-    precipProb: h.precipProbability,
-  }));
+  // Only show ±12 hours from now (24-hour window)
+  var now = Date.now();
+  var windowStart = now - 12 * 3600 * 1000;
+  var windowEnd = now + 12 * 3600 * 1000;
+
+  return hourly
+    .filter(function (h) {
+      var t = new Date(h.time).getTime();
+      return t >= windowStart && t <= windowEnd;
+    })
+    .map(function (h) {
+      return {
+        date: h.time,
+        label: new Date(h.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' }),
+        temp: h.temperature,
+        humidity: h.humidity,
+        cloudCover: h.cloudCover,
+        cloudCoverLow: h.cloudCoverLow,
+        cloudCoverMid: h.cloudCoverMid,
+        cloudCoverHigh: h.cloudCoverHigh,
+        visibility: h.visibility,
+        windSpeed: h.windSpeed,
+        precipProb: h.precipProbability,
+      };
+    });
 }
 
 function todayIdx(agg) {
@@ -273,4 +285,12 @@ export function createAllCharts(hourly) {
 export function destroyAllCharts() {
   Object.values(charts).forEach(c => c?.destroy());
   charts = {};
+}
+
+export function resizeAllCharts() {
+  Object.values(charts).forEach(c => {
+    try {
+      c.resize();
+    } catch (e) {}
+  });
 }

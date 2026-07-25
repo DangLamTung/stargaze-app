@@ -18,6 +18,14 @@ class StarGazeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Initialize osmdroid
+        org.osmdroid.config.Configuration.getInstance().load(
+            this,
+            getSharedPreferences("osmdroid", MODE_PRIVATE)
+        )
+        org.osmdroid.config.Configuration.getInstance().userAgentValue = packageName
+
         createNotificationChannel()
     }
 

@@ -13,14 +13,14 @@ let activeLayers = [];
 let animationTimer = null;
 let animationPosition = 0;
 let layerType = 'none'; // 'satellite' | 'radar' | 'none'
-let currentOpacity = 0.50;
+let currentOpacity = 0.5;
 
 const HIMAWARI_TIMES_URL = 'https://www.jma.go.jp/bosai/himawari/data/satimg/targetTimes_fd.json';
 // Full-disk Himawari tiles are published only for z=3..5.
 // Band/prod examples:
 // - B13/TBB: Infrared
 // - REP/ETC: True-color reproduction (RGB-like)
-let HIMAWARI_BAND_PROD = 'B13/TBB'; // 'B13/TBB'=infrared, 'REP/ETC'=true-color
+let HIMAWARI_BAND_PROD = 'REP/ETC'; // true-color by default; toggle to 'B13/TBB' for infrared
 const HIMAWARI_MAX_ZOOM = 5;
 
 export function toggleSatelliteBand() {
@@ -71,7 +71,7 @@ function addHimawariSatelliteLayers(map) {
 
 export async function initCloudSatelliteLayer() {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), 8000);
 
   try {
     const [rvRes, jmaRes] = await Promise.all([
@@ -94,12 +94,27 @@ export function setWeatherLayer(map, type) {
   layerType = type;
 
   stopCloudAnimation();
+  removeRadarRings();
   activeLayers.forEach(l => {
     if (map.hasLayer(l)) map.removeLayer(l);
   });
   activeLayers = [];
 
   if (type === 'none') return;
+
+  if (type === 'windy') {
+    // Windy.com free wind tiles — use high opacity since tiles are semi-transparent
+    var windyLayer = L.tileLayer('https://tiles.windy.com/tiles/v9.0/wind/{z}/{x}/{y}.png', {
+      opacity: 0.85,
+      zIndex: 410,
+      maxZoom: 19,
+      maxNativeZoom: 12,
+      attribution: '&copy; <a href="https://windy.com">Windy.com</a>',
+    });
+    windyLayer.addTo(map);
+    activeLayers.push(windyLayer);
+    return;
+  }
 
   if (type === 'radar' && apiData && apiData.radar && apiData.radar.past) {
     const frames = apiData.radar.past;
@@ -117,6 +132,8 @@ export function setWeatherLayer(map, type) {
       layer.addTo(map);
       activeLayers.push(layer);
     });
+    // Add radar range rings (zoom-resistant, in meters from map center)
+    addRadarRings(map);
   } else if (type === 'satellite') {
     if (!satelliteTimes.length) {
       fetch(HIMAWARI_TIMES_URL)
@@ -178,10 +195,7 @@ export function stopCloudAnimation() {
 
 export function setCloudOpacity(opacity) {
   currentOpacity = opacity;
-  if (!animationTimer && activeLayers.length > 0) {
-    animationPosition = Math.max(0, Math.min(animationPosition, activeLayers.length - 1));
-    activeLayers[animationPosition].setOpacity(opacity);
-  }
+  activeLayers.forEach(l => l.setOpacity(opacity));
 }
 
 export function setCloudFrame(index) {
@@ -200,4 +214,70 @@ export function setCloudFrame(index) {
 
 export function getCloudFramesCount() {
   return activeLayers.length;
+}
+
+// ─── Radar Visibility Ring (based on current weather visibility) ───
+var _radarRings = [];
+
+function addRadarRings(map) {
+  removeRadarRings();
+  var center = map.getCenter();
+
+  // Get current visibility from weather data (meters)
+  var visM = 20000; // default 20km
+  try {
+    var state = window._starGazeState;
+    if (state && state.weatherData && state.weatherData.current && state.weatherData.current.visibility) {
+      visM = state.weatherData.current.visibility;
+    }
+  } catch (_) {}
+
+  var visKm = Math.round(visM / 1000);
+  var color, fill;
+  if (visKm >= 30) {
+    color = 'rgba(34,197,94,0.25)';
+    fill = 'rgba(34,197,94,0.05)';
+  } else if (visKm >= 15) {
+    color = 'rgba(234,179,8,0.25)';
+    fill = 'rgba(234,179,8,0.05)';
+  } else {
+    color = 'rgba(239,68,68,0.25)';
+    fill = 'rgba(239,68,68,0.05)';
+  }
+
+  var ring = L.circle(center, {
+    radius: visM,
+    color: color,
+    fillColor: fill,
+    fillOpacity: 1,
+    weight: 2,
+    dashArray: '6,10',
+    interactive: false,
+    zIndex: 401,
+  });
+  ring.addTo(map);
+
+  var label = L.marker([center.lat, center.lng + visM / 111320], {
+    icon: L.divIcon({
+      className: 'radar-ring-label',
+      html:
+        '<span style="font-size:11px;color:' +
+        color.replace(/0\.\d+/, '0.8') +
+        ';background:rgba(0,0,0,0.5);padding:2px 6px;border-radius:4px;white-space:nowrap;font-weight:600">👁 Clear vision: ' +
+        visKm +
+        ' km</span>',
+      iconSize: [0, 0],
+    }),
+    interactive: false,
+    zIndex: 402,
+  });
+  label.addTo(map);
+  _radarRings.push(ring, label);
+}
+
+function removeRadarRings() {
+  _radarRings.forEach(function (r) {
+    if (r._map) r._map.removeLayer(r);
+  });
+  _radarRings = [];
 }

@@ -7,7 +7,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -45,7 +47,7 @@ import kotlin.math.roundToInt
 @Composable
 fun HomeScreen(
     onNavigateToCamera: () -> Unit,
-    onNavigateToSkyMap: () -> Unit,
+    onNavigateToSkyMap: (Double, Double) -> Unit,
     onNavigateToFavorites: () -> Unit,
     onNavigateToSettings: () -> Unit,
     viewModel: HomeViewModel = viewModel()
@@ -71,7 +73,10 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = onNavigateToSkyMap) {
+                    IconButton(onClick = {
+                        val loc = state.currentLocation
+                        if (loc != null) onNavigateToSkyMap(loc.latitude, loc.longitude)
+                    }) {
                         Icon(Icons.Default.Map, "Sky Map", tint = AccentCyan)
                     }
                     IconButton(onClick = onNavigateToCamera) {
@@ -117,13 +122,8 @@ fun HomeScreen(
                     }
                 }
                 else -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // ─── Search Bar ───
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // ─── Search Bar (fixed at top) ───
                         SearchBar(
                             query = state.searchQuery,
                             onQueryChange = { viewModel.onSearchQuery(it) },
@@ -136,73 +136,119 @@ fun HomeScreen(
                                 if (hasLocPerm) viewModel.locateMe()
                                 else locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                             },
-                            isLocating = state.isLocating
+                            isLocating = state.isLocating,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
 
-                        // ─── Map View ───
-                        MapView(
-                            latitude = state.currentLocation?.latitude,
-                            longitude = state.currentLocation?.longitude,
+                        // ─── Map View (fixed height) ───
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp)
+                                .height(220.dp)
+                                .padding(horizontal = 16.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                        )
-
-                        // ─── Now Score ───
-                        if (state.currentScore != null) {
-                            NowScoreCard(state.currentScore!!)
-                        }
-
-                        // ─── Quick Stats ───
-                        state.currentWeather?.let { w ->
-                            QuickStatsRow(w)
-                        }
-
-                        // ─── Forecast Cards ───
-                        if (state.scores.isNotEmpty()) {
-                            Text(
-                                "7-Day Forecast",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextSecondary
+                        ) {
+                            MapView(
+                                latitude = state.currentLocation?.latitude,
+                                longitude = state.currentLocation?.longitude,
+                                modifier = Modifier.fillMaxSize()
                             )
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp)
-                            ) {
-                                items(state.scores) { score ->
-                                    ForecastCard(score)
+                        }
+
+                        Spacer(Modifier.height(4.dp))
+
+                        // ─── Scrollable content ───
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // ─── Now Score ───
+                            if (state.currentScore != null) {
+                                NowScoreCard(state.currentScore!!, state.isModeAIEnabled)
+                            }
+
+                            // ─── Quick Stats ───
+                            state.currentWeather?.let { w ->
+                                QuickStatsRow(w)
+                            }
+
+                            // ─── Forecast Cards ───
+                            if (state.scores.isNotEmpty()) {
+                                Text(
+                                    "7-Day Forecast",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = TextSecondary
+                                )
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp)
+                                ) {
+                                    items(state.scores) { score ->
+                                        ForecastCard(score)
+                                    }
                                 }
                             }
-                        }
 
-                        // ─── Action Buttons ───
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            ActionButton(
-                                text = "Sky Map",
-                                icon = { Icon(Icons.Default.Map, null, tint = AccentCyan) },
-                                onClick = onNavigateToSkyMap,
-                                modifier = Modifier.weight(1f)
-                            )
-                            ActionButton(
-                                text = "Pro Camera",
-                                icon = { Icon(Icons.Default.CameraAlt, null, tint = StarYellow) },
-                                onClick = onNavigateToCamera,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        if (state.isLoading) {
-                            LinearProgressIndicator(
+                            // ─── Action Buttons ───
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = AccentCyan
-                            )
-                        }
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                ActionButton(
+                                    text = "Sky Map",
+                                    icon = { Icon(Icons.Default.Map, null, tint = AccentCyan) },
+                                    onClick = {
+                                        val loc = state.currentLocation
+                                        if (loc != null) onNavigateToSkyMap(loc.latitude, loc.longitude)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ActionButton(
+                                    text = "Pro Camera",
+                                    icon = { Icon(Icons.Default.CameraAlt, null, tint = StarYellow) },
+                                    onClick = onNavigateToCamera,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
 
-                        Spacer(Modifier.weight(1f))
+                            if (state.isLoading) {
+                                LinearProgressIndicator(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = AccentCyan
+                                )
+                            }
+
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
+                }
+                                    text = "Sky Map",
+                                    icon = { Icon(Icons.Default.Map, null, tint = AccentCyan) },
+                                    onClick = {
+                                        val loc = state.currentLocation
+                                        if (loc != null) onNavigateToSkyMap(loc.latitude, loc.longitude)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ActionButton(
+                                    text = "Pro Camera",
+                                    icon = { Icon(Icons.Default.CameraAlt, null, tint = StarYellow) },
+                                    onClick = onNavigateToCamera,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            if (state.isLoading) {
+                                LinearProgressIndicator(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = AccentCyan
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -219,61 +265,64 @@ private fun SearchBar(
     results: List<LocationResult>,
     onSelectLocation: (LocationResult) -> Unit,
     onLocate: () -> Unit,
-    isLocating: Boolean
+    isLocating: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("Search city...", color = TextMuted) },
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                focusedBorderColor = AccentCyan,
-                unfocusedBorderColor = SkyCardBorder,
-                cursorColor = AccentCyan
-            ),
-            shape = RoundedCornerShape(12.dp)
-        )
-        IconButton(onClick = onLocate) {
-            if (isLocating) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = AccentCyan,
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Icon(Icons.Default.MyLocation, "Locate", tint = AccentCyan)
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Search city...", color = TextMuted) },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = AccentCyan,
+                    unfocusedBorderColor = SkyCardBorder,
+                    cursorColor = AccentCyan
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+            IconButton(onClick = onLocate) {
+                if (isLocating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = AccentCyan,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Default.MyLocation, "Locate", tint = AccentCyan)
+                }
             }
         }
-    }
 
-    // Dropdown results
-    if (results.isNotEmpty()) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = SkyCard),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Column {
-                results.take(5).forEach { loc ->
-                    TextButton(
-                        onClick = { onSelectLocation(loc) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(horizontalAlignment = Alignment.Start) {
-                            Text(loc.name, color = TextPrimary, fontSize = 14.sp)
-                            Text(
-                                listOfNotNull(loc.admin1, loc.country).joinToString(", "),
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
+        // Dropdown results
+        if (results.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SkyCard),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column {
+                    results.take(5).forEach { loc ->
+                        TextButton(
+                            onClick = { onSelectLocation(loc) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(horizontalAlignment = Alignment.Start) {
+                                Text(loc.name, color = TextPrimary, fontSize = 14.sp)
+                                Text(
+                                    listOfNotNull(loc.admin1, loc.country).joinToString(", "),
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -285,7 +334,7 @@ private fun SearchBar(
 // ─── Cards ───
 
 @Composable
-private fun NowScoreCard(status: CurrentScoreStatus) {
+private fun NowScoreCard(status: CurrentScoreStatus, isModeAIEnabled: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = SkyCard),
@@ -311,7 +360,47 @@ private fun NowScoreCard(status: CurrentScoreStatus) {
                 fontSize = 14.sp,
                 color = TextSecondary
             )
+
+            if (isModeAIEnabled) {
+                Spacer(Modifier.height(16.dp))
+                Divider(color = SkyCardBorder, thickness = 0.5.dp)
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = StarYellow,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        "AI Insight",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = StarYellow,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    getAIInsight(status.score, status.rating),
+                    fontSize = 13.sp,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Light,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
         }
+    }
+}
+
+private fun getAIInsight(score: Int, rating: String): String {
+    return when {
+        score >= 90 -> "The atmosphere is exceptionally stable and clear. A rare window for deep-sky photography or observing faint nebulosity. Don't miss this pristine sky!"
+        score >= 70 -> "Conditions are favorable. While some high-altitude moisture exists, the transparency is good enough for planet-watching and major constellations."
+        score >= 50 -> "A mixed bag tonight. You might find clear patches, but be prepared for intermittent cloud cover. Best for casual observing with binoculars."
+        else -> "Significant atmospheric interference detected. Cloud cover or low visibility will likely obscure most celestial objects. Better to stay in and plan for next time."
     }
 }
 
@@ -393,17 +482,52 @@ private fun MapView(
     AndroidView(
         factory = { ctx ->
             org.osmdroid.views.MapView(ctx).apply {
-                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                // Use a dark tile source for night-sky theme
+                setTileSource(object : org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase(
+                    "CartoDark",
+                    0, 19, 256, ".png",
+                    arrayOf("https://a.basemaps.cartocdn.com/dark_all/"),
+                    "© OpenStreetMap contributors © CARTO"
+                ) {
+                    override fun getTileURLString(pMapTileIndex: Long): String {
+                        return (baseUrl + "/" + org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+                            + "/" + org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+                            + "/" + org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+                            + mImageFilenameEnding)
+                    }
+                })
                 setMultiTouchControls(true)
+                isClickable = true
+                minZoomLevel = 2.0
+                maxZoomLevel = 18.0
                 controller.setZoom(9.0)
                 controller.setCenter(org.osmdroid.util.GeoPoint(lat, lon))
                 setBuiltInZoomControls(false)
-                // Dark theme tiles
-                overlayManager.tilesOverlay?.setColorFilter(
-                    org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK
-                        .let { null } // Use default renderer
+
+                // ─── Cloud overlay ───
+                val cloudTileSource = object : org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase(
+                    "OpenWeatherClouds",
+                    0, 8, 256, ".png",
+                    arrayOf("https://tile.openweathermap.org/map/clouds_new/"),
+                    "© OpenWeatherMap"
+                ) {
+                    override fun getTileURLString(pMapTileIndex: Long): String {
+                        return (baseUrl + org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+                            + "/" + org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+                            + "/" + org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+                            + mImageFilenameEnding
+                            + "?appid=9de243494c0b2957f45b7530ba5f91b1")
+                    }
+                }
+                val cloudOverlay = org.osmdroid.views.overlay.TilesOverlay(
+                    org.osmdroid.tileprovider.MapTileProviderBasic(ctx, cloudTileSource),
+                    ctx
                 )
-                // TODO: Add light pollution overlay, cloud satellite overlay
+                cloudOverlay.loadingBackgroundColor = android.graphics.Color.TRANSPARENT
+                cloudOverlay.loadingLineColor = android.graphics.Color.TRANSPARENT
+                // Semi-transparent clouds
+                cloudOverlay.setAlpha(0.7f)
+                overlayManager.add(cloudOverlay)
             }
         },
         update = { mapView ->
@@ -425,6 +549,7 @@ data class HomeUiState(
     val searchResults: List<LocationResult> = emptyList(),
     val isLoading: Boolean = false,
     val isLocating: Boolean = false,
+    val isModeAIEnabled: Boolean = false,
     val error: String? = null
 )
 
@@ -439,6 +564,7 @@ data class CurrentScoreStatus(
 class HomeViewModel(application: android.app.Application) : AndroidViewModel(application) {
 
     private val weatherRepo = WeatherRepository()
+    private val settingsRepo = com.stargaze.app.data.repository.SettingsRepository(application)
     private val fusedLocationClient: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(application)
 
@@ -448,6 +574,12 @@ class HomeViewModel(application: android.app.Application) : AndroidViewModel(app
     private var lastQuery = ""
 
     init {
+        viewModelScope.launch {
+            settingsRepo.modeAIFlow.collect { enabled ->
+                _uiState.update { it.copy(isModeAIEnabled = enabled) }
+            }
+        }
+
         // Default: Ho Chi Minh City
         selectLocation(
             LocationResult(

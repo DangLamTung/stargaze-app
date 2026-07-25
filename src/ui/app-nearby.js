@@ -3,7 +3,7 @@
  */
 
 import { searchNearbyPlaces, getBatchWeatherData, rankBestLocations } from '../core/nearby-best-service.js';
-import { estimateBortleClass } from '../core/bortle-service.js';
+import { batchEstimateBortle } from '../core/bortle-service.js';
 import { showToast } from './toast.js';
 import { getMap, setLightPollutionLayer, renderNearbyMarkers } from './map-service.js';
 import { setWeatherLayer, startCloudAnimation, stopCloudAnimation, setCloudOpacity } from './cloud-layer.js';
@@ -16,9 +16,9 @@ export async function handleFindNearby(state, $, applyFiltersFn) {
   const radius = parseInt($('nearby-radius').value, 10) || 100;
   const maxResults = parseInt($('nearby-max-results')?.value, 10) || 20;
 
-  // Country filter: if "same country" is checked, use the current location's country
+  // Country filter: prefer ISO code (e.g. "VN") over full name (e.g. "Vietnam")
   const sameCountry = $('nearby-same-country')?.checked ?? true;
-  const country = sameCountry ? (loc.country || null) : null;
+  const country = sameCountry ? loc.countryCode || loc.country || null : null;
 
   // Update hint text
   const hint = $('nearby-country-hint');
@@ -61,32 +61,39 @@ export async function handleFindNearby(state, $, applyFiltersFn) {
     }
 
     loadingEl.innerHTML = '<div class="spinner"></div><p>Step 3/4: Fetching weather...</p>';
-    const weatherDataArray = await getBatchWeatherData(topPlaces, loc.timezone || 'auto', msg => {
-      loadingEl.innerHTML = `<div class="spinner"></div><p>${msg}</p>`;
+    const weatherDataArray = await getBatchWeatherData(topPlaces, loc.timezone || 'auto', (batchNum, total) => {
+      loadingEl.innerHTML = `<div class="spinner"></div><p>Step 3/4: Weather batch ${batchNum}/${total}...</p>`;
     });
+    const validWeather = weatherDataArray.filter(Boolean).length;
+    console.log('Nearby: weather done, valid:', validWeather, '/', weatherDataArray.length);
+    if (validWeather === 0) {
+      loadingEl.innerHTML = '<p class="no-data">⚠️ Weather service unavailable. Try again later.</p>';
+      if (btn) btn.disabled = false;
+      return;
+    }
 
     loadingEl.innerHTML = `<p style="font-weight:600;">Step 4/4: Analyzing light pollution (${topPlaces.length} locations)...</p>
       <div style="width:100%;background:rgba(255,255,255,0.1);border-radius:4px;height:8px;overflow:hidden;">
-        <div id="nearby-bortle-bar" style="height:100%;width:0%;background:var(--primary);transition:width 0.3s;"></div>
+        <div id="nearby-bortle-bar" style="height:100%;width:100%;background:var(--primary);transition:width 0.3s;"></div>
       </div>
-      <p id="nearby-bortle-count" style="font-size:0.8rem;color:#aaa;margin-top:0.3rem;">0 / ${topPlaces.length}</p>`;
+      <p id="nearby-bortle-count" style="font-size:0.8rem;color:#aaa;margin-top:0.3rem;">Fetching...</p>`;
 
-    let completed = 0;
-    const total = topPlaces.length;
-    const bortles = await Promise.all(
-      topPlaces.map(async p => {
-        const b = await estimateBortleClass(p.latitude, p.longitude);
-        completed++;
-        const bar = document.getElementById('nearby-bortle-bar');
-        const cnt = document.getElementById('nearby-bortle-count');
-        if (bar) bar.style.width = `${Math.round((completed / total) * 100)}%`;
-        if (cnt) cnt.textContent = `${completed} / ${total}`;
-        return b;
-      }),
-    );
+    const bortles = await batchEstimateBortle(topPlaces);
+    const bar = document.getElementById('nearby-bortle-bar');
+    const cnt = document.getElementById('nearby-bortle-count');
+    if (bar) bar.style.width = '100%';
+    if (cnt) cnt.textContent = `${topPlaces.length} / ${topPlaces.length}`;
+
     topPlaces.forEach((p, i) => (p.bortle = bortles[i]));
 
     const ranked = rankBestLocations(topPlaces, weatherDataArray);
+    console.log('Nearby: ranked', ranked.length, 'results');
+    if (ranked.length === 0) {
+      loadingEl.innerHTML = '<p class="no-data">⚠️ No scored results. Weather data may be incomplete.</p>';
+      resultsEl.classList.remove('hidden');
+      if (btn) btn.disabled = false;
+      return;
+    }
     window._nearbyRawData = ranked;
     if (applyFiltersFn) applyFiltersFn();
     filtersEl?.classList.remove('hidden');

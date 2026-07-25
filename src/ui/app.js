@@ -9,6 +9,8 @@ import {
   getWeatherDescription,
   getCurrentConditions,
   reverseGeocode,
+  isAccuWeatherEnabled,
+  setAccuWeatherEnabled,
 } from '../core/weather-service.js';
 import { calculateAllScores, findBestNight, getScoreColor, getScoreGradient } from '../core/stargazing-score.js';
 import { loadFavorites, getFavorites, toggleFavorite, isFavorite } from '../core/favorites-service.js';
@@ -28,8 +30,8 @@ import {
   computeBearing,
   updateViewingBearing,
 } from './map-service.js';
-import { createAllCharts } from './chart-service.js';
-import { initSkyMap, updateSkyMap, getStellariumUrl, setSkyContext } from './sky-map.js';
+import { createAllCharts, resizeAllCharts } from './chart-service.js';
+import { initSkyMap, updateSkyMap, getStellariumUrl, setSkyContext } from './sky-map.js?v=33';
 import {
   initCloudSatelliteLayer,
   setWeatherLayer,
@@ -58,8 +60,19 @@ import {
   handleCloudAnimate as _handleCloudAnimate,
 } from './app-nearby.js';
 
-// ─── State ───
-const state = { location: null, weatherData: null, scores: null, bestNight: null, loading: false, bortleClass: 5 };
+import {
+  state,
+  saveState,
+  loadSavedLocation,
+  getRecentSearches,
+  addRecentSearch,
+  formatLocationName,
+  debounce,
+} from './app-state.js';
+import { setupReminderModal, closeReminderModal } from './app-reminders.js';
+import { init as initSearch, showRecentSearches, setToast } from './app-search.js';
+import { init as initTide, renderTidePanel } from './app-tide.js';
+
 let refreshTimer = null;
 let refreshIntervalMs = 5 * 60 * 1000; // default 5 min
 
@@ -71,44 +84,17 @@ function restartRefresh() {
 const $ = id => document.getElementById(id);
 let cloudAnimating = false;
 
-// Global Error & Promise Rejection Handlers for Debugging
+// Global Error & Promise Rejection Handlers
 window.addEventListener('error', event => {
   console.error('💥 [Global Error]', event.error || event.message);
-  fetch('/?log_error=' + encodeURIComponent(event.message + ' | ' + (event.error ? event.error.stack : '')));
-  if (typeof showToast === 'function') {
-    showToast(`Client Error: ${event.message}`, 'error');
-  }
 });
 
 window.addEventListener('unhandledrejection', event => {
   console.error('💥 [Unhandled Rejection]', event.reason);
-  fetch(
-    '/?log_rejection=' +
-      encodeURIComponent(event.reason && event.reason.message ? event.reason.message : String(event.reason)),
-  );
-  if (typeof showToast === 'function') {
-    showToast(`Promise Rejection: ${event.reason?.message || event.reason}`, 'error');
-  }
 });
 
-// ─── Debounce ───
-function debounce(fn, ms) {
-  let t;
-  return (...a) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...a), ms);
-  };
-}
-
-// Sync map bearing to Stellarium
 function updateStellariumBearing(bearing) {
   import('./sky-map.js').then(m => m.setSkyBearing(bearing));
-  const link = document.getElementById('stellarium-link');
-  if (link && state.location) {
-    import('./sky-map.js').then(m => {
-      link.href = m.getStellariumUrl(state.location.latitude, state.location.longitude, bearing);
-    });
-  }
 }
 
 // ─── Favorites ───
@@ -185,27 +171,27 @@ $('notif-btn')?.addEventListener('click', async () => {
     return;
   }
   try {
-    var result = await Notification.requestPermission();
+    const result = await Notification.requestPermission();
     if (result === 'granted') {
       showToast('Notifications enabled! ✅', 'success');
       $('notif-btn').style.color = '#00ff88';
     } else if (result === 'denied') {
       showToast('Denied. Enable in Chrome settings → Notifications', 'error');
     }
-  } catch(e) {
+  } catch (e) {
     showToast('Permission request failed: ' + e.message, 'error');
   }
 });
 
 // Update bell color based on permission
 if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-  var nb = $('notif-btn');
+  const nb = $('notif-btn');
   if (nb) nb.style.color = '#00ff88';
 }
 
 // ─── Notification permission in settings ───
 $('settings-notif-btn')?.addEventListener('click', async () => {
-  var status = document.getElementById('settings-notif-status');
+  const status = document.getElementById('settings-notif-status');
   if (!('Notification' in window)) {
     if (status) status.textContent = '❌ Notifications not supported on this browser';
     return;
@@ -215,14 +201,16 @@ $('settings-notif-btn')?.addEventListener('click', async () => {
     return;
   }
   try {
-    var result = await Notification.requestPermission();
+    const result = await Notification.requestPermission();
     if (result === 'granted') {
       if (status) status.textContent = '✅ Notifications enabled!';
       showToast('Notifications enabled', 'success');
     } else {
-      if (status) status.textContent = '❌ Denied. Enable manually: Chrome → Settings → Site settings → Notifications → stargaze-app.fly.dev → Allow';
+      if (status)
+        status.textContent =
+          '❌ Denied. Enable manually: Chrome → Settings → Site settings → Notifications → stargaze-app.fly.dev → Allow';
     }
-  } catch(e) {
+  } catch (e) {
     if (status) status.textContent = '❌ Error: ' + e.message;
   }
 });
@@ -237,26 +225,30 @@ $('settings-test-notif-btn')?.addEventListener('click', () => {
     showToast('Permission: ' + Notification.permission, 'warn');
     return;
   }
-  var w = state.weatherData?.current || {};
-  var info = [
+  const w = state.weatherData?.current || {};
+  const info = [
     '☁️ Cloud ' + (w.cloudCover != null ? Math.round(w.cloudCover) + '%' : '?'),
     '🌡️ ' + (w.temperature != null ? Math.round(w.temperature) + '°C' : '?'),
-    '👁️ Vis ' + (w.visibility != null ? (w.visibility/1000).toFixed(1) + 'km' : '?'),
+    '👁️ Vis ' + (w.visibility != null ? (w.visibility / 1000).toFixed(1) + 'km' : '?'),
     '💧 Hum ' + (w.humidity != null ? Math.round(w.humidity) + '%' : '?'),
-    '📍 ' + (state.location ? state.location.name : '?')
+    '📍 ' + (state.location ? state.location.name : '?'),
   ].join(' · ');
   try {
     new Notification('🔭 StarGaze Update', { body: info, tag: 'stargaze-test' });
     showToast('Notification sent! ✅', 'success');
     return;
-  } catch(e) {}
+  } catch (e) {
+    void e;
+  }
   if (navigator.serviceWorker) {
-    navigator.serviceWorker.ready.then(function(reg) {
-      reg.showNotification('🔭 StarGaze Update', { body: info, tag: 'stargaze-test' });
-      showToast('Notification sent via SW! ✅', 'success');
-    }).catch(function(e) {
-      showToast('SW failed: ' + e.message, 'error');
-    });
+    navigator.serviceWorker.ready
+      .then(function (reg) {
+        reg.showNotification('🔭 StarGaze Update', { body: info, tag: 'stargaze-test' });
+        showToast('Notification sent via SW! ✅', 'success');
+      })
+      .catch(function (e) {
+        showToast('SW failed: ' + e.message, 'error');
+      });
   } else {
     showToast('No notification method available', 'error');
   }
@@ -264,7 +256,7 @@ $('settings-test-notif-btn')?.addEventListener('click', () => {
 
 // Update notification status when settings opens
 function updateNotifStatus() {
-  var status = document.getElementById('settings-notif-status');
+  const status = document.getElementById('settings-notif-status');
   if (!status) return;
   if (!('Notification' in window)) {
     status.textContent = '❌ Not supported';
@@ -277,10 +269,26 @@ function updateNotifStatus() {
   }
 }
 
+// AccuWeather label helper
+function updateAccuLabel() {
+  const label = $('accu-status-label');
+  const check = $('settings-accuweather');
+  if (label && check) {
+    label.textContent = check.checked ? 'ON' : 'OFF';
+    label.style.color = check.checked ? '#f80' : '#64748b';
+  }
+}
+
 // Update status when settings opens
 $('settings-btn')?.addEventListener('click', async () => {
   $('settings-modal').classList.add('visible');
   updateNotifStatus();
+  // AccuWeather toggle
+  const accuCheck = $('settings-accuweather');
+  if (accuCheck) {
+    accuCheck.checked = isAccuWeatherEnabled();
+    updateAccuLabel();
+  }
   try {
     const res = await fetch('/api/settings');
     if (res.ok) {
@@ -303,6 +311,11 @@ $('close-settings')?.addEventListener('click', () => {
 
 $('save-settings-btn')?.addEventListener('click', async () => {
   const interval = $('settings-interval')?.value || '14400';
+  const accuCheck = $('settings-accuweather');
+  if (accuCheck) {
+    setAccuWeatherEnabled(accuCheck.checked);
+    updateAccuLabel();
+  }
   try {
     const res = await fetch('/api/settings', {
       method: 'POST',
@@ -323,6 +336,9 @@ $('save-settings-btn')?.addEventListener('click', async () => {
 // ─── Init ───
 function init() {
   initMap('map');
+
+  // AccuWeather toggle listener — attach once
+  $('settings-accuweather')?.addEventListener('change', updateAccuLabel);
 
   // Load saved settings interval BEFORE starting refresh
   fetch('/api/settings')
@@ -345,6 +361,12 @@ function init() {
   // Pre-fetch cloud APIs so they are ready when toggled
   import('./cloud-layer.js').then(m => m.initCloudSatelliteLayer().catch(console.error));
 
+  if (new URLSearchParams(window.location.search).get('mockAR') === 'true') {
+    import('../simulator/ARSimulatorUI.js')
+      .then(m => m.arSimulator?.init())
+      .catch(err => console.warn('AR Simulator import note:', err));
+  }
+
   // Fetch Curated Spots
   fetch('/api/curated_spots')
     .then(res => res.json())
@@ -354,10 +376,18 @@ function init() {
       if (spots && spots.length > 0 && panel && list) {
         panel.style.display = 'block';
         spots.forEach(spot => {
+          const icon = spot.type === 'mirror_sea' ? '🪞' : '⭐';
           const btn = document.createElement('button');
           btn.style.cssText =
             'text-align: left; background: transparent; border: none; color: white; cursor: pointer; padding: 6px; border-radius: 6px; transition: background 0.2s;';
-          btn.innerHTML = `<strong style="font-size: 0.95rem;">${spot.name}</strong><br><span style="font-size: 0.75rem; color: #94a3b8;">${spot.bortle ? 'Class ' + spot.bortle + ' • ' : ''}${spot.admin1}</span>`;
+          btn.innerHTML =
+            icon +
+            ' <strong style="font-size: 0.95rem;">' +
+            spot.name +
+            '</strong><br><span style="font-size: 0.75rem; color: #94a3b8;">' +
+            (spot.bortle ? 'Class ' + spot.bortle + ' • ' : '') +
+            spot.admin1 +
+            '</span>';
           btn.onmouseover = () => (btn.style.background = 'rgba(255,255,255,0.1)');
           btn.onmouseout = () => (btn.style.background = 'transparent');
           btn.onclick = () => {
@@ -373,6 +403,8 @@ function init() {
       }
     })
     .catch(err => console.error('Failed to load curated spots', err));
+
+  initTide(state);
 
   const map = getMap();
 
@@ -409,23 +441,15 @@ function init() {
     if (label) label.textContent = `${Math.round(bearing)}°`;
   });
 
-  $('search-input').addEventListener('input', debounce(handleSearch, 300));
-  $('search-input').addEventListener('focus', () => {
-    if ($('search-results').children.length) $('search-results').classList.add('visible');
-  });
-  document.addEventListener('click', e => {
-    if (!e.target.closest('.search-container')) $('search-results').classList.remove('visible');
-  });
-  $('search-input').addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      $('search-results').classList.remove('visible');
-      $('search-input').blur();
+  // Search bar & geolocation — delegated to app-search module
+  initSearch({ selectLocation, searchLocations, getRecentSearches, addRecentSearch, $, showToast });
+  setToast(showToast);
+  // Restore location name after search blur
+  $('search-input')?.addEventListener('blur', function () {
+    if (!this.value.trim() && state.location) {
+      this.value = formatLocationName(state.location);
     }
   });
-
-  $('locate-btn').addEventListener('click', handleGeolocation);
-  $('reminder-close')?.addEventListener('click', closeReminderModal);
-  $('reminder-form')?.addEventListener('submit', handleReminderSubmit);
 
   // Nearby Search
   $('nearby-radius')?.addEventListener('input', e => {
@@ -448,6 +472,17 @@ function init() {
   });
   $('btn-find-nearby')?.addEventListener('click', handleFindNearby);
 
+  // Weather model selector — refresh data when model changes
+  const modelSel = $('weather-model-select');
+  if (modelSel) {
+    modelSel.value = state.weatherModel || 'best_match';
+    modelSel.addEventListener('change', function () {
+      state.weatherModel = this.value;
+      saveState();
+      if (state.location) selectLocation(state.location);
+    });
+  }
+
   document.querySelectorAll('.chart-tab').forEach(tab => tab.addEventListener('click', handleChartTab));
 
   // Mobile panel toggle & drag
@@ -458,19 +493,33 @@ function init() {
     panelToggleBtn.addEventListener('click', () => {
       infoPanel.classList.toggle('collapsed');
       panelToggleBtn.classList.toggle('collapsed');
+      if (!infoPanel.classList.contains('collapsed')) {
+        setTimeout(function () {
+          resizeAllCharts();
+        }, 400);
+      }
     });
     // Touch drag to resize panel
-    let dragStartY = 0, dragStartH = 0;
-    panelHandle.addEventListener('touchstart', e => {
-      dragStartY = e.touches[0].clientY;
-      dragStartH = infoPanel.getBoundingClientRect().height;
-    }, { passive: true });
-    panelHandle.addEventListener('touchmove', e => {
-      const dy = dragStartY - e.touches[0].clientY;
-      const newH = Math.min(Math.max(dragStartH + dy, window.innerHeight * 0.08), window.innerHeight * 0.8);
-      infoPanel.style.height = newH + 'px';
-      infoPanel.style.maxHeight = newH + 'px';
-    }, { passive: true });
+    let dragStartY = 0,
+      dragStartH = 0;
+    panelHandle.addEventListener(
+      'touchstart',
+      e => {
+        dragStartY = e.touches[0].clientY;
+        dragStartH = infoPanel.getBoundingClientRect().height;
+      },
+      { passive: true },
+    );
+    panelHandle.addEventListener(
+      'touchmove',
+      e => {
+        const dy = dragStartY - e.touches[0].clientY;
+        const newH = Math.min(Math.max(dragStartH + dy, window.innerHeight * 0.08), window.innerHeight * 0.8);
+        infoPanel.style.height = newH + 'px';
+        infoPanel.style.maxHeight = newH + 'px';
+      },
+      { passive: true },
+    );
     panelHandle.addEventListener('touchend', () => {
       // Snap to collapsed or expanded
       const h = infoPanel.getBoundingClientRect().height;
@@ -494,6 +543,10 @@ function init() {
   });
   $('weather-layer-select')?.addEventListener('change', handleWeatherLayerChange);
   $('lp-layer-select')?.addEventListener('change', handleLpLayerChange);
+  // Initialize LP controls visibility on page load
+  if ($('lp-layer-select')?.value !== 'none') {
+    $('lp-controls')?.classList.remove('hidden');
+  }
   $('cloud-animate')?.addEventListener('click', handleCloudAnimate);
 
   // Satellite band toggle (IR ↔ True-Color)
@@ -519,7 +572,10 @@ function init() {
 
   // Opacity sliders
   $('cloud-opacity-slider')?.addEventListener('input', e => {
-    import('./cloud-layer.js').then(m => m.setCloudOpacity(parseFloat(e.target.value)));
+    const opacity = parseFloat(e.target.value);
+    const label = $('cloud-opacity-val');
+    if (label) label.textContent = `${Math.round(opacity * 100)}%`;
+    import('./cloud-layer.js').then(m => m.setCloudOpacity(opacity));
   });
 
   $('cloud-time-slider')?.addEventListener('input', e => {
@@ -540,36 +596,10 @@ function init() {
   });
 
   $('lp-opacity-slider')?.addEventListener('input', e => {
-    import('./map-service.js').then(m => m.setLightPollutionOpacity(parseFloat(e.target.value)));
-  });
-
-  // LP year slider
-  $('lp-year-slider')?.addEventListener('input', e => {
-    const year = parseInt(e.target.value, 10);
-    $('lp-year-label').textContent = year;
-    import('./map-service.js').then(m => m.setLightPollutionYear(year));
-  });
-
-  // LP year play/stop
-  let lpPlayTimer = null;
-  $('lp-play-btn')?.addEventListener('click', () => {
-    const btn = $('lp-play-btn');
-    const slider = $('lp-year-slider');
-    if (lpPlayTimer) {
-      clearInterval(lpPlayTimer);
-      lpPlayTimer = null;
-      btn.textContent = '▶ Play';
-    } else {
-      slider.value = 2012;
-      btn.textContent = '⏸ Stop';
-      lpPlayTimer = setInterval(() => {
-        let val = parseInt(slider.value, 10) + 1;
-        if (val > 2025) val = 2012;
-        slider.value = val;
-        $('lp-year-label').textContent = val;
-        import('./map-service.js').then(m => m.setLightPollutionYear(val));
-      }, 2000);
-    }
+    const opacity = parseFloat(e.target.value);
+    const label = $('lp-opacity-val');
+    if (label) label.textContent = `${Math.round(opacity * 100)}%`;
+    import('./map-service.js').then(m => m.setLightPollutionOpacity(opacity));
   });
 
   // Nearby Filters
@@ -590,10 +620,10 @@ function init() {
   console.log('🔭 StarGaze initialized');
 
   // Register service worker for PWA notifications
+  // NOTE: Do NOT call reg.update() — it forces an update check on every page load
+  // which, combined with skipWaiting, can cause a constant reload cycle.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').then(function(reg) {
-      reg.update();
-    }).catch(() => {});
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
   // Request notification permission for forecast alerts
@@ -609,10 +639,10 @@ function init() {
   });
 
   // Resume refresh when tab becomes visible (fixes mobile background throttling)
-  var lastVisibleTime = Date.now();
+  let lastVisibleTime = Date.now();
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-      var elapsed = Date.now() - lastVisibleTime;
+      const elapsed = Date.now() - lastVisibleTime;
       // If tab was hidden longer than the refresh interval, run immediately
       if (elapsed >= refreshIntervalMs) {
         checkAllFavorites();
@@ -625,41 +655,93 @@ function init() {
     }
   });
 
-  // Load Ho Chi Minh City by default
-  const defaultLoc = {
-    name: 'Ho Chi Minh City',
-    country: 'Vietnam',
-    admin1: 'Ho Chi Minh City',
-    latitude: 10.762622,
-    longitude: 106.660172,
-    timezone: 'Asia/Ho_Chi_Minh',
-  };
+  // ─── Smart initial location: saved > IP geolocation > default ───
+  const saved = loadSavedLocation();
+  if (saved) {
+    console.log('📍 Restoring saved location:', saved.name);
+    selectLocation(saved).catch(err => console.error('Failed to restore location:', err));
+  } else {
+    // Try IP geolocation first (free, no API key needed)
+    fetch('https://ipapi.co/json/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.latitude && data.longitude) {
+          const ipLoc = {
+            name: data.city || data.region || 'Your Location',
+            country: data.country_name || '',
+            admin1: data.region || '',
+            latitude: data.latitude,
+            longitude: data.longitude,
+            timezone: data.timezone || 'auto',
+          };
+          console.log('📍 IP geolocation:', ipLoc.name + ', ' + ipLoc.country);
+          return selectLocation(ipLoc);
+        }
+        throw new Error('No location from IP');
+      })
+      .catch(() => {
+        // Fallback to Ho Chi Minh City
+        const defaultLoc = {
+          name: 'Ho Chi Minh City',
+          country: 'Vietnam',
+          admin1: 'Ho Chi Minh City',
+          latitude: 10.762622,
+          longitude: 106.660172,
+          timezone: 'Asia/Ho_Chi_Minh',
+        };
+        console.log('📍 Using default location:', defaultLoc.name);
+        return selectLocation(defaultLoc);
+      })
+      .catch(err => console.error('Failed to load location:', err));
+  }
 
-  console.log('🔭 Loading default location: Ho Chi Minh City');
-  selectLocation(defaultLoc).catch(err => {
-    console.error('Failed to load default location:', err);
-    showToast(`Failed to load default location: ${err.message}`, 'error');
+  // ─── AR button: always visible, shows hint on desktop ───
+  if (!('DeviceOrientationEvent' in window) || !('ontouchstart' in window)) {
+    const arBtn = $('ar-btn');
+    if (arBtn) {
+      arBtn.style.opacity = '0.5';
+      arBtn.title = 'AR requires a phone with gyroscope';
+    }
+  }
+
+  // ─── Show offline indicator when loaded from SW cache ───
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    const banner = document.createElement('div');
+    banner.id = 'offline-banner';
+    banner.textContent = '📡 Offline-ready — cached data may be stale';
+    banner.style.cssText =
+      'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f97316;color:#000;text-align:center;padding:6px;font-size:12px;font-weight:600';
+    document.body.prepend(banner);
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+      const b = $('offline-banner');
+      if (b) b.remove();
+    }, 4000);
+  }
+
+  // ─── Close modals on outside click ───
+  document.addEventListener('click', e => {
+    if (e.target.id === 'settings-modal') $('settings-modal').classList.remove('visible');
+    if (e.target.id === 'reminder-modal') $('reminder-modal').classList.remove('visible');
   });
 
   // Expose for nearby-spot clicks
   window._selectLocation = selectLocation;
 
-  // On mobile, collapse the info panel and controls by default (map-first layout)
+  // On mobile, collapse controls by default; keep info panel OPEN for chart rendering
   if (window.innerWidth <= 900) {
-    $('info-panel')?.classList.add('collapsed');
-    $('panel-toggle-btn')?.classList.add('collapsed');
     $('map-layers-control')?.classList.add('collapsed');
   }
 
   // Load default satellite cloud layer
-  setTimeout(function() {
-    var sel = $('weather-layer-select');
+  setTimeout(function () {
+    const sel = $('weather-layer-select');
     if (sel && sel.value === 'satellite') {
       handleWeatherLayerChange({ target: { value: 'satellite' } });
     }
   }, 500);
 
-  // Map controls toggle button
+  // Map controls toggle button (FAB 🗺️)
   $('controls-toggle-btn')?.addEventListener('click', () => {
     $('map-layers-control')?.classList.toggle('collapsed');
   });
@@ -667,26 +749,42 @@ function init() {
   // AR Mode
   $('ar-btn')?.addEventListener('click', async () => {
     if (!state.location) {
-      showToast('Select a location first', 'warn');
-      return;
+      // Try geolocation first
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, enableHighAccuracy: true });
+        });
+        const lat = pos.coords.latitude,
+          lon = pos.coords.longitude;
+        state.location = {
+          latitude: lat,
+          longitude: lon,
+          name: lat.toFixed(4) + ', ' + lon.toFixed(4),
+          countryCode: '',
+        };
+        selectLocation(state.location);
+      } catch (e) {
+        alert('Please tap \uD83D\uDCCD My Location first, or search for a city first.');
+        return;
+      }
     }
     const ar = await import('./ar-mode.js');
     if (ar.isARActive()) {
       ar.stopARMode();
     } else {
-      // Sync bearing so AR heading updates the map
-      window._arBearingCallback = (heading, lat, lon) => {
-        updateViewingBearing(lat, lon, heading);
-        import('./sky-map.js').then(m => m.setSkyBearing(heading));
-        const slider = $('bearing-slider');
-        if (slider) slider.value = Math.round(heading);
-      };
-      // Expose current weather for AR overlay
-      window._arWeatherData = state.weatherData?.current || null;
-      ar.startARMode(state.location.latitude, state.location.longitude, (err) => {
+      // AR heading updates the map via event emitter
+      import('./ar-mode.js').then(() => {
+        import('../core/events.js').then(({ on }) => {
+          on('bearing:update', ({ heading, lat, lon }) => {
+            updateViewingBearing(lat, lon, heading);
+            import('./sky-map.js').then(m => m.setSkyBearing(heading));
+            const slider = $('bearing-slider');
+            if (slider) slider.value = Math.round(heading);
+          });
+        });
+      });
+      ar.startARMode(state.location.latitude, state.location.longitude, err => {
         if (err) showToast(`AR: ${err}`, 'error');
-        window._arBearingCallback = null;
-        window._arWeatherData = null;
       });
     }
   });
@@ -694,7 +792,6 @@ function init() {
   $('ar-close-btn')?.addEventListener('click', async () => {
     const ar = await import('./ar-mode.js');
     ar.stopARMode();
-    window._arBearingCallback = null;
   });
 
   // Viewing bearing rotation slider
@@ -711,150 +808,95 @@ function init() {
   });
 }
 
-// ─── Search ───
-async function handleSearch(e) {
-  const q = e.target.value.trim();
-  const sr = $('search-results');
-  if (q.length < 2) {
-    sr.innerHTML = '';
-    sr.classList.remove('visible');
-    return;
-  }
-
-  const locs = await searchLocations(q);
-  if (!locs.length) {
-    sr.innerHTML = '<div class="search-item no-results">No locations found</div>';
-    sr.classList.add('visible');
-    return;
-  }
-
-  sr.innerHTML = locs
-    .map(
-      (l, i) => `
-    <button class="search-item" data-index="${i}" type="button">
-      <span class="search-item-name">${l.name}</span>
-      <span class="search-item-detail">${[l.admin1, l.country].filter(Boolean).join(', ')}</span>
-    </button>`,
-    )
-    .join('');
-  sr.classList.add('visible');
-  sr.querySelectorAll('.search-item').forEach(item => {
-    item.addEventListener('click', () => {
-      selectLocation(locs[parseInt(item.dataset.index)]);
-      sr.classList.remove('visible');
-    });
-  });
-}
-
-// ─── Geolocation ───
-async function handleGeolocation() {
-  if (!navigator.geolocation) {
-    showToast('Geolocation not supported', 'error');
-    return;
-  }
-  const btn = $('locate-btn');
-  btn.classList.add('loading');
-  btn.textContent = '⏳ Locating...';
-  try {
-    const pos = await new Promise((ok, fail) =>
-      navigator.geolocation.getCurrentPosition(ok, fail, { enableHighAccuracy: true, timeout: 10000 }),
-    );
-    const { latitude, longitude } = pos.coords;
-    const locs = await searchLocations(`${latitude},${longitude}`);
-    const loc = locs[0] || { name: 'Current Location', country: '', admin1: '', latitude, longitude, timezone: 'auto' };
-    loc.latitude = latitude;
-    loc.longitude = longitude;
-    selectLocation(loc);
-  } catch {
-    showToast('Could not get location. Search manually.', 'error');
-  } finally {
-    btn.classList.remove('loading');
-    btn.innerHTML = '<span class="btn-icon">📍</span> My Location';
-  }
-}
-
 // ─── Select Location ───
+let _selectReqId = 0; // guard against concurrent calls corrupting state
 async function selectLocation(location) {
+  const reqId = ++_selectReqId;
+
+  // Phase 1: Show location immediately — pan map, update search bar
+  state.location = location;
+  saveState();
+  addRecentSearch(location);
+  $('search-results').classList.remove('visible');
+  $('search-input').value = formatLocationName(location);
+
+  updateFavoriteButton();
+
+  // Show panels immediately (before data arrives)
+  $('welcome-section')?.classList.add('hidden');
+  $('info-panel')?.classList.remove('hidden');
+  $('content-sections')?.classList.remove('hidden');
+
+  if (window.innerWidth <= 900) {
+    $('info-panel')?.classList.remove('collapsed');
+    $('panel-toggle-btn')?.classList.remove('collapsed');
+    setTimeout(function () {
+      resizeAllCharts();
+    }, 400);
+  }
+
+  updateMapView();
+  updateViewingBearing(location.latitude, location.longitude, 0);
+
+  const bearingCtrl = $('bearing-control');
+  const bearingSlider = $('bearing-slider');
+  const bearingLabel = $('bearing-label');
+  if (bearingCtrl) bearingCtrl.style.display = '';
+  if (bearingSlider) bearingSlider.value = 0;
+  if (bearingLabel) bearingLabel.textContent = '0° N';
+
+  const hint = $('nearby-country-hint');
+  const sameCountry = $('nearby-same-country');
+  if (hint && sameCountry?.checked && location.country) {
+    hint.textContent = `(${location.country})`;
+  }
+
+  // Phase 2: Fetch data in parallel (non-blocking for UI)
   setLoading(true);
   try {
-    state.location = location;
-    $('search-results').classList.remove('visible');
-    $('search-input').value = `${location.name}${location.country ? ', ' + location.country : ''}`;
-
-    updateFavoriteButton();
-
     const [weatherData, bortleClass] = await Promise.all([
-      getWeatherData(location.latitude, location.longitude, location.timezone || 'auto'),
+      getWeatherData(location.latitude, location.longitude, location.timezone || 'auto', state.weatherModel),
       estimateBortleClass(location.latitude, location.longitude),
     ]);
 
+    // Guard: discard if another selectLocation was called while we were waiting
+    if (reqId !== _selectReqId) return;
+
     state.weatherData = weatherData;
-    // Pass observed cloud cover to bias-correct the model forecast
     const observedCloud = weatherData.current?.cloudCover ?? null;
     state.scores = calculateAllScores(weatherData, bortleClass, observedCloud);
     state.bestNight = findBestNight(state.scores);
     state.bortleClass = bortleClass;
 
-    // Reveal container BEFORE rendering map and charts
-    // Otherwise Leaflet and Chart.js get 0x0 dimensions and throw errors/NaNs
-    $('welcome-section')?.classList.add('hidden');
-    $('info-panel')?.classList.remove('hidden');
-    $('content-sections')?.classList.remove('hidden');
-
-    // Force a small delay to guarantee browser DOM reflow applies dimensions
-    await new Promise(r => setTimeout(r, 50));
-
-    // On mobile, expand the panel when a location is selected
-    if (window.innerWidth <= 900) {
-      $('info-panel')?.classList.remove('collapsed');
-      $('panel-toggle-btn')?.classList.remove('collapsed');
-    }
-
     renderLocationInfo();
     renderNowScore();
+    renderNextHours();
     renderStargazingCards();
     renderCharts();
 
-    updateMapView();
-    updateViewingBearing(location.latitude, location.longitude, 0);
     initSkyMapView();
+    renderTidePanel(location.latitude, location.longitude);
 
-    // Show bearing control and reset slider
-    const bearingCtrl = $('bearing-control');
-    const bearingSlider = $('bearing-slider');
-    const bearingLabel = $('bearing-label');
-    if (bearingCtrl) bearingCtrl.style.display = '';
-    if (bearingSlider) bearingSlider.value = 0;
-    if (bearingLabel) bearingLabel.textContent = '0° N';
-
-    // Start continuous now-score refresh
     startNowRefresh();
     startForecastWatch();
-
-    // Update nearby country hint
-    const hint = $('nearby-country-hint');
-    const sameCountry = $('nearby-same-country');
-    if (hint && sameCountry?.checked && location.country) {
-      hint.textContent = `(${location.country})`;
-    }
 
     // Preload Stellarium for instant AR mode
     import('./ar-mode.js').then(m => m.preloadStellarium(location.latitude, location.longitude));
 
-    const stellariumLink = $('stellarium-link');
-    if (stellariumLink) stellariumLink.href = getStellariumUrl(location.latitude, location.longitude, 0);
-
     setTimeout(() => {
+      if (reqId !== _selectReqId) return;
       document.querySelectorAll('.animate-in').forEach((el, i) => {
         el.style.animationDelay = `${i * 0.1}s`;
         el.classList.add('visible');
       });
     }, 100);
   } catch (err) {
-    console.error('Failed:', err);
-    showToast(`Failed to load weather: ${err.message}`, 'error');
+    if (reqId === _selectReqId) {
+      console.error('Failed:', err);
+      showToast(`Failed to load weather: ${err.message}`, 'error');
+    }
   } finally {
-    setLoading(false);
+    if (reqId === _selectReqId) setLoading(false);
   }
 }
 
@@ -864,6 +906,74 @@ function renderLocationInfo() {
 }
 function renderNowScore() {
   _renderNowScore(state, $);
+}
+function renderNextHours() {
+  const sec = $('next-hours-section');
+  const grid = $('next-hours-grid');
+  if (!sec || !grid || !state.weatherData || !state.weatherData.hourly) return;
+  const now = Date.now();
+  const hours = state.weatherData.hourly
+    .filter(function (h) {
+      return h.time.getTime() >= now && h.time.getTime() <= now + 12 * 3600000;
+    })
+    .slice(0, 12);
+  if (!hours.length) return;
+  sec.style.display = '';
+  grid.innerHTML = hours
+    .map(function (h) {
+      const hr = h.time.getHours();
+      const label = hr === 0 ? '12AM' : hr < 12 ? hr + 'AM' : hr === 12 ? '12PM' : hr - 12 + 'PM';
+      const cc = h.cloudCover != null ? h.cloudCover : 50;
+      const lo = h.cloudCoverLow,
+        mi = h.cloudCoverMid,
+        hi = h.cloudCoverHigh;
+      const ccColor =
+        cc <= 20 ? '#00e676' : cc <= 40 ? '#76ff03' : cc <= 60 ? '#ffea00' : cc <= 80 ? '#ff9800' : '#f44336';
+      let icon = cc <= 20 ? '☀️' : cc <= 50 ? '⛅' : '☁️';
+      // If mostly cirrus, show ☁️ but lighter
+      if (hi > 50 && (lo || 0) < 20 && (mi || 0) < 30) icon = '🌤️';
+      const temp = h.temperature != null ? Math.round(h.temperature) + '°' : '--';
+      // Tiny bar showing cloud layer composition
+      const barW = 40;
+      const loW = Math.round(((lo || 0) / 100) * barW),
+        miW = Math.round(((mi || 0) / 100) * barW),
+        hiW = Math.round(((hi || 0) / 100) * barW);
+      return (
+        '<div style="flex:0 0 58px;text-align:center;font-size:10px;color:#94a3b8;padding:3px 2px;background:rgba(255,255,255,0.04);border-radius:6px">' +
+        '<div style="font-weight:600;color:#e2e8f0;margin-bottom:1px;font-size:10px">' +
+        label +
+        '</div>' +
+        '<div style="font-size:16px;margin:1px 0">' +
+        icon +
+        '</div>' +
+        '<div style="color:' +
+        ccColor +
+        ';font-weight:600;font-size:10px">' +
+        cc +
+        '%</div>' +
+        '<div style="display:flex;gap:1px;justify-content:center;margin:2px 0;height:4px">' +
+        '<span style="width:' +
+        loW +
+        'px;background:#f44336;border-radius:1px" title="Low:' +
+        (lo || 0) +
+        '%"></span>' +
+        '<span style="width:' +
+        miW +
+        'px;background:#ff9800;border-radius:1px" title="Mid:' +
+        (mi || 0) +
+        '%"></span>' +
+        '<span style="width:' +
+        hiW +
+        'px;background:#78909c;border-radius:1px" title="High:' +
+        (hi || 0) +
+        '%"></span>' +
+        '</div>' +
+        '<div style="font-size:9px">' +
+        temp +
+        '</div></div>'
+      );
+    })
+    .join('');
 }
 function renderStargazingCards() {
   _renderStargazingCards(state, $);
@@ -886,17 +996,27 @@ function startNowRefresh() {
   refreshTimer = setInterval(async () => {
     if (state.location && !state.loading) {
       try {
-        var wd = await getWeatherData(state.location.latitude, state.location.longitude, state.location.timezone || 'auto');
+        const wd = await getWeatherData(
+          state.location.latitude,
+          state.location.longitude,
+          state.location.timezone || 'auto',
+          state.weatherModel,
+        );
         state.weatherData = wd;
         renderNowScore();
-      } catch (err) { console.warn('Refresh failed:', err); }
+      } catch (err) {
+        console.warn('Refresh failed:', err);
+      }
     }
     checkAllFavorites();
     checkAndNotifyForecast();
   }, refreshIntervalMs);
 }
 function stopNowRefresh() {
-  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
 }
 
 // ─── 7-day forecast watcher ───
@@ -904,14 +1024,19 @@ function startForecastWatch() {}
 function stopForecastWatch() {}
 
 async function checkAndNotifyForecast() {
-  if (!state.location || !state.weatherData || !('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!state.location || !state.weatherData || !('Notification' in window) || Notification.permission !== 'granted')
+    return;
   try {
-    var bortle = await estimateBortleClass(state.location.latitude, state.location.longitude).catch(function(){ return 5; });
-    var cur = state.weatherData.current || {};
-    var scores = calculateAllScores(state.weatherData, bortle, cur.cloudCover ?? null);
-    var body = buildForecastBody(scores);
-    sendNotification('📍 ' + state.location.name, body, 'now-' + state.location.name.replace(/\s/g,'-'));
-  } catch(e) { console.warn('Forecast notify failed:', e); }
+    const bortle = await estimateBortleClass(state.location.latitude, state.location.longitude).catch(function () {
+      return 7;
+    });
+    const cur = state.weatherData.current || {};
+    const scores = calculateAllScores(state.weatherData, bortle, cur.cloudCover ?? null);
+    const body = buildForecastBody(scores);
+    sendNotification('📍 ' + state.location.name, body, 'now-' + state.location.name.replace(/\s/g, '-'));
+  } catch (e) {
+    console.warn('Forecast notify failed:', e);
+  }
 }
 
 function scoreIcon(v) {
@@ -924,20 +1049,20 @@ function scoreIcon(v) {
 }
 
 function buildForecastBody(scores) {
-  var lines = [];
-  var best = null;
-  for (var i = 0; i < scores.length; i++) {
+  const lines = [];
+  let best = null;
+  for (let i = 0; i < scores.length; i++) {
     if (!best || scores[i].score > best.score) best = scores[i];
   }
   if (best) {
-    var bd = new Date(best.date).toLocaleDateString('en-US',{weekday:'short'});
+    const bd = new Date(best.date).toLocaleDateString('en-US', { weekday: 'short' });
     lines.push(scoreIcon(best.score) + ' Best: ' + bd + ' ' + best.score);
   }
-  for (var i = 0; i < Math.min(scores.length, 7); i++) {
-    var s = scores[i];
-    var d = new Date(s.date).toLocaleDateString('en-US',{weekday:'short'});
-    var cloud = (s.avgCloudCover != null) ? s.avgCloudCover : '?';
-    var rain = (s.avgPrecipProb != null) ? s.avgPrecipProb : '?';
+  for (let i = 0; i < Math.min(scores.length, 7); i++) {
+    const s = scores[i];
+    const d = new Date(s.date).toLocaleDateString('en-US', { weekday: 'short' });
+    const cloud = s.avgCloudCover != null ? s.avgCloudCover : '?';
+    const rain = s.avgPrecipProb != null ? s.avgPrecipProb : '?';
     lines.push(d + ' ☁' + cloud + '% 🌧' + rain + '% ' + scoreIcon(s.score) + ' ' + s.score);
   }
   return lines.join('\n');
@@ -945,42 +1070,61 @@ function buildForecastBody(scores) {
 // ─── Favorites watcher ───
 window._favScores = {};
 
-function startFavoritesWatch() { checkAllFavorites(); }
+function startFavoritesWatch() {
+  checkAllFavorites();
+}
 function stopFavoritesWatch() {}
 
 async function checkAllFavorites() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-  var locs = [];
-  if (state.location) locs.push({ name: state.location.name, lat: state.location.latitude, lon: state.location.longitude });
-  var favs = getFavorites();
-  for (var i = 0; i < favs.length; i++) {
-    var f = favs[i];
-    if (state.location && Math.abs(f.latitude - state.location.latitude) < 0.01 && Math.abs(f.longitude - state.location.longitude) < 0.01) continue;
+  const locs = [];
+  if (state.location)
+    locs.push({ name: state.location.name, lat: state.location.latitude, lon: state.location.longitude });
+  const favs = getFavorites();
+  for (let i = 0; i < favs.length; i++) {
+    const f = favs[i];
+    if (
+      state.location &&
+      Math.abs(f.latitude - state.location.latitude) < 0.01 &&
+      Math.abs(f.longitude - state.location.longitude) < 0.01
+    )
+      continue;
     locs.push({ name: f.name, lat: f.latitude, lon: f.longitude });
   }
   if (!locs.length) return;
 
-  for (var j = 0; j < locs.length; j++) {
-    var loc = locs[j];
+  for (let j = 0; j < locs.length; j++) {
+    const loc = locs[j];
     try {
-      var wd = await getWeatherData(loc.lat, loc.lon, 'auto');
-      var cur = wd.current || {};
-      var bortle = await estimateBortleClass(loc.lat, loc.lon).catch(function(){ return 5; });
-      var scores = calculateAllScores(wd, bortle, cur.cloudCover ?? null);
-      var body = buildForecastBody(scores);
-      sendNotification('📍 ' + loc.name, body, 'loc-' + loc.name.replace(/\s/g,'-'));
-    } catch (e) { console.warn('Check failed for ' + loc.name + ':', e); }
+      const wd = await getWeatherData(loc.lat, loc.lon, 'auto');
+      const cur = wd.current || {};
+      const bortle = await estimateBortleClass(loc.lat, loc.lon).catch(function () {
+        return 7;
+      });
+      const scores = calculateAllScores(wd, bortle, cur.cloudCover ?? null);
+      const body = buildForecastBody(scores);
+      sendNotification('📍 ' + loc.name, body, 'loc-' + loc.name.replace(/\s/g, '-'));
+    } catch (e) {
+      console.warn('Check failed for ' + loc.name + ':', e);
+    }
   }
   renderFavoritesList();
 }
 
 function sendNotification(title, body, tag) {
-  try { new Notification(title, { body: body, tag: tag }); return; } catch(e) {}
+  try {
+    new Notification(title, { body: body, tag: tag });
+    return;
+  } catch (e) {
+    void e;
+  }
   if (navigator.serviceWorker) {
-    navigator.serviceWorker.ready.then(function(reg) {
-      reg.showNotification(title, { body: body, tag: tag });
-    }).catch(function(){});
+    navigator.serviceWorker.ready
+      .then(function (reg) {
+        reg.showNotification(title, { body: body, tag: tag });
+      })
+      .catch(function () {});
   }
 }
 // ─── Nearby wrappers ───
@@ -1002,86 +1146,12 @@ function handleCloudAnimate() {
 }
 
 // ─── Reminder Modal ───
-window.openReminder = function (i) {
-  const night = state.scores[i];
-  if (!night) return;
-  const modal = document.getElementById('reminder-modal');
-  document.getElementById('reminder-night-date').textContent = new Date(night.date).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
-  document.getElementById('reminder-night-score').textContent = night.score + '/100';
-  document.getElementById('reminder-night-score').style.color = night.ratingColor;
-  document.getElementById('reminder-score-index').value = i;
-  modal.classList.add('visible');
-};
-function closeReminderModal() {
-  document.getElementById('reminder-modal').classList.remove('visible');
-}
-async function handleReminderSubmit(e) {
-  e.preventDefault();
-  const i = parseInt(document.getElementById('reminder-score-index').value);
-  const night = state.scores[i];
-  if (!night) return;
-  const email = document.getElementById('reminder-email').value.trim();
-  const method = document.querySelector('input[name="reminder-method"]:checked').value;
-  if (method === 'email' && email) {
-    sendEmailReminder(email, night, state.location.name + ', ' + state.location.country);
-    showToast('Opening email client', 'success');
-  } else if (method === 'notification') {
-    if (!('Notification' in window)) {
-      showToast('Notifications not supported on this browser', 'error');
-      closeReminderModal();
-      return;
-    }
-    if (Notification.permission === 'denied') {
-      showToast('Notifications blocked. Enable in Chrome → Site Settings → Notifications', 'error');
-      closeReminderModal();
-      return;
-    }
-    var ok = await requestNotificationPermission();
-    if (ok) {
-      var nightDate = new Date(night.date).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
-      var weatherInfo = [
-        '⭐ ' + night.score + '/100 ' + night.rating,
-        '☁️ Cloud ' + (night.avgCloudCover || '?') + '%',
-        '🌡️ ' + (night.tempMin || '?') + '°–' + (night.tempMax || '?') + '°C',
-        '👁️ Vis ' + ((night.avgVisibility || 0) / 1000).toFixed(1) + 'km',
-        night.moonPhaseIcon + ' Moon ' + (night.moonPhaseName || '?'),
-        '📍 ' + state.location.name
-      ].join(' · ');
-      showNotification('🔭 Stargazing — ' + nightDate, { body: weatherInfo });
-      var now = Date.now();
-      var target = new Date(night.sunset).getTime() + 30 * 60000;
-      var delay = Math.max(1000, target - now);
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SCHEDULE',
-          delay: delay,
-          title: '🔭 Stargazing Tonight!',
-          body: weatherInfo
-        });
-        showToast('Reminder scheduled for sunset! ✅', 'success');
-      } else {
-        showToast('Notification set! ✅', 'success');
-      }
-    } else {
-      showToast('Notification denied — check browser site settings', 'error');
-    }
-  }
-  closeReminderModal();
-}
-window.addToCalendar = function (i) {
-  const night = state.scores[i];
-  if (!night) return;
-  createStargazingReminder(night, state.location.name + ', ' + state.location.country);
-  showToast('Calendar event downloaded!', 'success');
-};
+setupReminderModal(state);
 
 // ─── Loading ───
 function setLoading(on) {
   state.loading = on;
-  document.getElementById('loading-overlay').classList.toggle('visible', on);
+  const el = document.getElementById('loading-overlay');
+  if (el) el.classList.toggle('visible', on);
 }
 document.addEventListener('DOMContentLoaded', init);

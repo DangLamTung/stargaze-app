@@ -1,0 +1,68 @@
+/* Extracted from main.css — shared styles */
+
+/* ─── Tide Section ─── */
+
+.tide-section {
+  margin-top: 1rem;
+  padding: 1rem 1.2rem;
+}
+
+.tide-section .section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ─── Tide Chart ─── */
+.tide-chart-wrap {
+  height: 200px;
+  margin: 0 12px 4px;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.tide-chart-wrap canvas {
+  display: block;
+}
+
+/* ─── Tide Search Dropdown ─── */
+.tide-search-dropdown {
+  background: rgba(15, 23, 42, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.tide-search-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.15s;
+}
+
+.tide-search-item:hover {
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.tide-search-item:last-child {
+  border-bottom: none;
+}
+
+.tide-search-name {
+  display: block;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.tide-search-sub {
+  display: block;
+  color: #64748b;
+  font-size: 0.7rem;
+  margin-top: 1px;
+}

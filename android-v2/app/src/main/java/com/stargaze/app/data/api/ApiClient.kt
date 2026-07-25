@@ -1,6 +1,6 @@
 package com.stargaze.app.data.api
 
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -36,4 +36,5 @@ object ApiClient {
         .build()
 
     val api: StarGazeApi = retrofit.create(StarGazeApi::class.java)
+    val openMeteoApi: OpenMeteoApi = retrofit.create(OpenMeteoApi::class.java)
 }

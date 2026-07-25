@@ -9,6 +9,63 @@ let map = null,
   bearingGlow = null,
   bortleLabel = null;
 let currentBearing = 0;
+let _bortleReqId = 0;
+let _bortleDebounceTimer = null;
+
+function _fetchBortleDebounced(lat, lon, bearing, dist) {
+  // Debounce: only fire bortle fetch 300ms after last bearing change
+  if (_bortleDebounceTimer) clearTimeout(_bortleDebounceTimer);
+  _bortleDebounceTimer = setTimeout(() => {
+    const requestId = ++_bortleReqId;
+    const samplePoint = destPoint(lat, lon, bearing, Math.min(dist * 0.35, 8));
+    fetch(`/api/bortle?lat=${samplePoint[0].toFixed(4)}&lon=${samplePoint[1].toFixed(4)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (requestId !== _bortleReqId || !bortleLabel) return;
+        const bRaw = d.bortle;
+        const b = bRaw && bRaw !== 'Unknown' ? parseInt(bRaw) : null;
+        const sqm = d.sqm ? parseFloat(d.sqm).toFixed(1) : null;
+        if (!b) {
+          // Fallback: no bortle at this point, just show bearing
+          bortleLabel.setIcon(
+            L.divIcon({
+              className: 'bearing-bortle-label',
+              html: `<div style="background:rgba(8,14,26,0.92);color:#94a3b8;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:600;border:1px solid rgba(148,163,184,0.25);white-space:nowrap;">🌌 ${Math.round(bearing)}°</div>`,
+              iconSize: [60, 24],
+              iconAnchor: [30, 32],
+            }),
+          );
+          return;
+        }
+        const color = b <= 3 ? '#00e676' : b <= 5 ? '#ffcc00' : '#ff5252';
+        const icon = b <= 3 ? '🌟' : b <= 5 ? '🌙' : '🏙️';
+        const label = b <= 3 ? 'Pristine' : b <= 5 ? 'Suburban' : 'Urban';
+        const bb = Math.round(bearing);
+        var sqmStr = sqm ? ' · ' + sqm + 'm' : '';
+        bortleLabel.setIcon(
+          L.divIcon({
+            className: 'bearing-bortle-label',
+            html: `<div style="background:rgba(8,14,26,0.94);color:${color};padding:4px 10px;border-radius:12px;font-size:10px;font-weight:600;letter-spacing:0.5px;border:1px solid ${color}33;white-space:nowrap;backdrop-filter:blur(8px);">${icon} B${b} ${label}${sqmStr} · ${bb}°</div>`,
+            iconSize: [135, 24],
+            iconAnchor: [68, 32],
+          }),
+        );
+      })
+      .catch(() => {
+        if (requestId !== _bortleReqId || !bortleLabel) return;
+        bortleLabel.setIcon(
+          L.divIcon({
+            className: 'bearing-bortle-label',
+            html: `<div style="background:rgba(8,14,26,0.92);color:#94a3b8;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:600;border:1px solid rgba(148,163,184,0.25);white-space:nowrap;">🌌 ${Math.round(bearing)}°</div>`,
+            iconSize: [60, 24],
+            iconAnchor: [30, 32],
+          }),
+        );
+      });
+  }, 300);
+}
+let _bearingInnerArc = null;
+let _bearingEdges = null;
 const ARC_SPREAD = 60; // degrees of FOV — wider for industrial look
 
 function createIcon(emoji, color = '#00d4ff', size = 36) {
@@ -29,9 +86,9 @@ export function initMap(containerId) {
   }
   map = L.map(containerId, { zoomControl: false, attributionControl: true }).setView([20, 0], 3);
 
-  // CartoDB Dark Matter basemap (default — pairs well with light pollution overlay)
-  const basemap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+  // OpenStreetMap default basemap
+  const basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
   }).addTo(map);
 
@@ -44,6 +101,25 @@ export function initMap(containerId) {
   drawSovereigntyOverlays(map);
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  // Wire up bearing slider in controls panel
+  const bearingSlider = document.getElementById('bearing-slider');
+  const bearingLabel = document.getElementById('bearing-label');
+  const bearingControl = document.getElementById('bearing-control');
+  if (bearingSlider) {
+    bearingSlider.addEventListener('input', function () {
+      const deg = parseInt(this.value);
+      if (bearingLabel) {
+        const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const idx = Math.round(deg / 45) % 8;
+        bearingLabel.textContent = deg + '° ' + dirs[idx];
+      }
+      // Also update sky map bearing
+      if (typeof window._skyAz === 'function') window._skyAz(deg);
+    });
+    // Show bearing control when sky map is active
+    if (bearingControl) bearingControl.style.display = '';
+  }
   console.log('🗺️ Map setup complete');
   return map;
 }
@@ -133,72 +209,108 @@ export function updateViewingBearing(lat, lon, bearing) {
   if (bearingArc) map.removeLayer(bearingArc);
   if (bearingGlow) map.removeLayer(bearingGlow);
   if (bortleLabel) map.removeLayer(bortleLabel);
+  if (_bearingInnerArc) {
+    map.removeLayer(_bearingInnerArc);
+    _bearingInnerArc = null;
+  }
+  if (_bearingEdges) {
+    _bearingEdges.forEach(l => map.removeLayer(l));
+    _bearingEdges = null;
+  }
 
   currentBearing = ((bearing % 360) + 360) % 360;
 
-  // Larger distance for industrial radar look
   const dist = Math.max(8, 30 - (map.getZoom() - 8) * 2.5);
-
-  // Glow layer — wide, translucent
-  const glowTip = destPoint(lat, lon, bearing, dist * 1.05);
-  bearingGlow = L.polyline([[lat, lon], glowTip], {
-    color: '#00ff88',
-    weight: 8,
-    opacity: 0.12,
-    interactive: false,
-  }).addTo(map);
-
-  // Main dashed line — bright neon green
   const tip = destPoint(lat, lon, bearing, dist);
+
+  // ─── Outer glow halo (wide, very faint) ───
+  const glowTip = destPoint(lat, lon, bearing, dist * 1.08);
+  bearingGlow = L.polyline([[lat, lon], glowTip], {
+    color: '#00d4ff',
+    weight: 14,
+    opacity: 0.07,
+    interactive: false,
+    className: 'bearing-glow',
+  }).addTo(map);
+
+  // ─── Centerline — sleek thin cyan line ───
   bearingLine = L.polyline([[lat, lon], tip], {
-    color: '#00ff88',
-    weight: 3,
-    dashArray: '10, 6',
-    opacity: 0.7,
+    color: '#00d4ff',
+    weight: 2,
+    opacity: 0.85,
     interactive: false,
+    className: 'bearing-line',
   }).addTo(map);
 
-  // Wide filled arc for FOV
-  const arcPoints = [[lat, lon]];
-  const steps = 16;
-  for (let i = -ARC_SPREAD / 2; i <= ARC_SPREAD / 2; i += ARC_SPREAD / steps) {
-    arcPoints.push(destPoint(lat, lon, bearing + i, dist * 0.75));
+  // ─── FOV sector — multi-layer gradient effect ───
+  const arcSteps = 20;
+  // Outer arc (faint fill)
+  const outerArc = [[lat, lon]];
+  for (let i = -ARC_SPREAD / 2; i <= ARC_SPREAD / 2; i += ARC_SPREAD / arcSteps) {
+    outerArc.push(destPoint(lat, lon, bearing + i, dist * 0.78));
   }
-  arcPoints.push([lat, lon]);
-  bearingArc = L.polygon(arcPoints, {
-    color: '#00ff88',
-    weight: 1.5,
-    fillColor: '#00ff88',
-    fillOpacity: 0.08,
+  outerArc.push([lat, lon]);
+  bearingArc = L.polygon(outerArc, {
+    color: '#00d4ff',
+    weight: 0,
+    fillColor: '#00d4ff',
+    fillOpacity: 0.06,
     interactive: false,
+    className: 'bearing-arc',
   }).addTo(map);
 
-  // Bortle label at the tip
+  // Inner arc (slightly more opaque — creates gradient effect)
+  const innerArc = [[lat, lon]];
+  for (let i = -ARC_SPREAD / 3; i <= ARC_SPREAD / 3; i += ARC_SPREAD / (arcSteps * 1.2)) {
+    innerArc.push(destPoint(lat, lon, bearing + i, dist * 0.55));
+  }
+  innerArc.push([lat, lon]);
+  const _innerArc = L.polygon(innerArc, {
+    color: '#00d4ff',
+    weight: 0,
+    fillColor: '#00d4ff',
+    fillOpacity: 0.1,
+    interactive: false,
+    className: 'bearing-arc-inner',
+  }).addTo(map);
+  // Track inner arc for cleanup
+  if (_bearingInnerArc) map.removeLayer(_bearingInnerArc);
+  _bearingInnerArc = _innerArc;
+
+  // ─── Sector edge lines (subtle borders) ───
+  const leftEdge = destPoint(lat, lon, bearing - ARC_SPREAD / 2, dist * 0.78);
+  const rightEdge = destPoint(lat, lon, bearing + ARC_SPREAD / 2, dist * 0.78);
+  const edgeLines = L.polyline([[lat, lon], leftEdge], {
+    color: '#00d4ff',
+    weight: 1,
+    opacity: 0.2,
+    interactive: false,
+  }).addTo(map);
+  const edgeLines2 = L.polyline([[lat, lon], rightEdge], {
+    color: '#00d4ff',
+    weight: 1,
+    opacity: 0.2,
+    interactive: false,
+  }).addTo(map);
+  // Track for cleanup
+  if (_bearingEdges) {
+    _bearingEdges.forEach(l => map.removeLayer(l));
+  }
+  _bearingEdges = [edgeLines, edgeLines2];
+
+  // ─── Bortle label — polished pill design ───
   bortleLabel = L.marker(tip, {
     icon: L.divIcon({
       className: 'bearing-bortle-label',
-      html: '<div style="background:rgba(0,0,0,0.85);color:#00ff88;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;border:1px solid #00ff8844;white-space:nowrap;">⏳</div>',
-      iconSize: [40, 18],
-      iconAnchor: [20, 9],
+      html: '<div style="background:rgba(8,14,26,0.92);color:#00d4ff;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:600;letter-spacing:0.5px;border:1px solid rgba(0,212,255,0.25);white-space:nowrap;backdrop-filter:blur(8px);">⏳ scanning…</div>',
+      iconSize: [80, 24],
+      iconAnchor: [40, 32],
     }),
     interactive: false,
   }).addTo(map);
 
-  // Fire Bortle query along the bearing
-  const samplePoint = destPoint(lat, lon, bearing, Math.min(dist * 0.8, 20));
-  fetch(`/api/bortle?lat=${samplePoint[0].toFixed(4)}&lon=${samplePoint[1].toFixed(4)}`)
-    .then(r => r.json())
-    .then(d => {
-      const b = d.bortle || '?';
-      const color = b <= 3 ? '#00ff88' : b <= 5 ? '#ffcc00' : '#ff4444';
-      bortleLabel.setIcon(L.divIcon({
-        className: 'bearing-bortle-label',
-        html: `<div style="background:rgba(0,0,0,0.9);color:${color};padding:3px 8px;border-radius:4px;font-family:monospace;font-size:11px;border:1px solid ${color}44;white-space:nowrap;">🌌 B${b} ${Math.round(bearing)}°</div>`,
-        iconSize: [70, 20],
-        iconAnchor: [35, 10],
-      }));
-    })
-    .catch(() => {});
+  // Fire Bortle query along the bearing (debounced — avoids spam when rotating fast)
+  _fetchBortleDebounced(lat, lon, bearing, dist);
 }
 
 export function getViewingBearing() {
@@ -217,7 +329,7 @@ export function computeBearing(lat1, lon1, lat2, lon2) {
 
 let lpLayer = null;
 let currentLpType = 'none';
-let currentLpYear = 2023;
+let currentLpYear = 2025;
 let currentLpOpacity = 0.55;
 
 export function setBasemapLayer(type) {
@@ -230,11 +342,24 @@ export function setBasemapLayer(type) {
   if (type === 'dark') {
     layerUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     attr = '&copy; <a href="https://carto.com/attributions">CARTO</a>';
+  } else if (type === 'topo') {
+    layerUrl = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+    attr =
+      '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> | <a href="https://www.openstreetmap.org/copyright">OSM</a>';
   } else if (type === 'satellite') {
     layerUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
     attr = '&copy; <a href="https://www.esri.com">Esri</a>';
+  } else if (type === 'google-sat') {
+    // Google Satellite hybrid — satellite imagery + labels
+    layerUrl = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+    attr = '&copy; <a href="https://maps.google.com">Google</a>';
+  } else if (type === 'watercolor') {
+    // Stamen Watercolor — artistic, beautiful for seascape planning
+    layerUrl = 'https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg';
+    attr =
+      '&copy; <a href="https://stamen.com">Stamen Design</a> | <a href="https://www.openstreetmap.org/copyright">OSM</a>';
   } else {
-    // Default to OSM
+    // Default: OSM
     layerUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     attr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
   }
@@ -252,24 +377,27 @@ export function setLightPollutionLayer(type) {
 
   if (type === 'none') return;
 
-  lpLayer = L.tileLayer(`/api/tile/{z}/{x}/{y}.png?year=${currentLpYear}`, {
-    attribution: `&copy; <a href="https://lightpollutionmap.info">lightpollutionmap.info (VIIRS ${currentLpYear})</a>`,
+  // Direct WMTS from lightpollutionmap.info — no backend proxy, much faster
+  var tileUrl =
+    'https://www.lightpollutionmap.info/geoserver/gwc/service/wmts' +
+    '?layer=PostGIS:VIIRS_' +
+    currentLpYear +
+    '&style=&tilematrixset=EPSG:900913&Service=WMTS&Request=GetTile&Version=1.0.0' +
+    '&Format=image/png&TileMatrix=EPSG:900913:{z}&TileCol={x}&TileRow={y}';
+  lpLayer = L.tileLayer(tileUrl, {
+    attribution:
+      '&copy; <a href="https://lightpollutionmap.info">lightpollutionmap.info (VIIRS ' + currentLpYear + ')</a>',
     opacity: currentLpOpacity,
     maxZoom: 19,
-    maxNativeZoom: 8,
+    maxNativeZoom: 9,
+    referrerPolicy: 'no-referrer',
+    crossOrigin: false,
   }).addTo(map);
 }
 
 export function setLightPollutionOpacity(opacity) {
   currentLpOpacity = opacity;
   if (lpLayer) lpLayer.setOpacity(opacity);
-}
-
-export function setLightPollutionYear(year) {
-  currentLpYear = year;
-  if (currentLpType !== 'none') {
-    setLightPollutionLayer(currentLpType);
-  }
 }
 
 let nearbyMarkersLayer = null;

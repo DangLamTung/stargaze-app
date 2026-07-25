@@ -8,13 +8,33 @@ import {
   fetchMetarCurrent,
   fetchWeatherApiCurrent,
   fetchWeatherApiForecast,
+  fetchAccuWeatherCurrent,
   fetchOwmCurrent,
-  fetchWttrCurrent,
   fetchMetNoCurrent,
   fetchMetNoForecast,
 } from './weather-sources.js';
 
+// ─── AccuWeather toggle (paid — OFF by default) ───
+export function isAccuWeatherEnabled() {
+  try {
+    return localStorage.getItem('use_accuweather') === 'true';
+  } catch (_) {
+    return false;
+  }
+}
+export function setAccuWeatherEnabled(on) {
+  try {
+    localStorage.setItem('use_accuweather', on ? 'true' : 'false');
+  } catch (_) {}
+}
+
 const BASE_URL = 'https://api.open-meteo.com/v1';
+const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+
+/** Fetch with timeout using AbortSignal.timeout() — rejects with TimeoutError if no response */
+function fetchWithTimeout(url, ms = 20000) {
+  return fetch(url, { signal: AbortSignal.timeout(ms) });
+}
 
 const HOURLY_PARAMS = [
   'temperature_2m',
@@ -59,6 +79,17 @@ const CURRENT_PARAMS = [
   'is_day',
 ].join(',');
 
+// Pressure level parameters for seeing estimation
+const PRESSURE_LEVEL_PARAMS = [
+  'wind_speed_200hPa',
+  'wind_speed_850hPa',
+  'temperature_200hPa',
+  'temperature_850hPa',
+].join(',');
+
+// Air quality parameters
+const AIR_QUALITY_PARAMS = ['pm2_5', 'pm10', 'dust', 'european_aqi'].join(',');
+
 /** WMO Weather Code descriptions */
 const WEATHER_CODES = {
   0: { description: 'Clear sky', icon: '☀️', night: '🌙' },
@@ -93,41 +124,84 @@ export function getWeatherDescription(code, isNight = false) {
 }
 
 /**
- * Search for locations by name
+ * Search for locations by name via our backend (which uses Google if key set)
  */
 export async function searchLocations(query, count = 8) {
   if (!query || query.trim().length < 2) return [];
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=${count}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Geocoding error: ${res.status}`);
-    const data = await res.json();
-    return (data.features || []).map(f => {
-      const p = f.properties;
-      const coords = f.geometry.coordinates; // [lon, lat]
-      return {
-        id: p.osm_id || Math.random().toString(),
-        name: p.name,
-        country: p.country || '',
-        countryCode: p.countrycode || '',
-        admin1: p.state || p.county || '',
-        latitude: coords[1],
-        longitude: coords[0],
-        timezone: 'auto',
-        population: 0,
-        elevation: 0,
-      };
-    });
-  } catch (err) {
-    console.error('Location search failed:', err);
-    return [];
+  const trimmed = query.trim();
+
+  // If query is in coordinate format e.g. "10.763, 106.660"
+  const coordMatch = trimmed.match(/^([-+]?\d+(?:\.\d+)?),\s*([-+]?\d+(?:\.\d+)?)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lon = parseFloat(coordMatch[2]);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      const rev = await reverseGeocode(lat, lon);
+      return [
+        {
+          id: `${lat},${lon}`,
+          name: rev?.name || `${lat.toFixed(3)}, ${lon.toFixed(3)}`,
+          country: rev?.country || '',
+          countryCode: rev?.countryCode || '',
+          admin1: rev?.admin1 || '',
+          latitude: lat,
+          longitude: lon,
+          timezone: rev?.timezone || 'auto',
+        },
+      ];
+    }
   }
+
+  const q = encodeURIComponent(trimmed);
+
+  try {
+    const r = await fetch(`/api/geocode?q=${q}&count=${count}`);
+    if (r.ok) {
+      const d = await r.json();
+      if (d?.length) return d;
+    }
+  } catch (_) {}
+
+  // Fallback: direct Open-Meteo if backend is down
+  try {
+    const r = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${q}&count=${count}&language=en&format=json`,
+    );
+    if (r.ok) {
+      const d = await r.json();
+      if (d.results?.length)
+        return d.results.map(r => ({
+          id: String(r.id),
+          name: r.name,
+          country: r.country || '',
+          countryCode: r.country_code || '',
+          admin1: r.admin1 || '',
+          latitude: r.latitude,
+          longitude: r.longitude,
+          timezone: r.timezone || 'auto',
+          population: r.population || 0,
+          elevation: r.elevation || 0,
+        }));
+    }
+  } catch (_) {}
+
+  return [];
 }
 
 /**
  * Reverse geocode latitude and longitude to get a location name
  */
 export async function reverseGeocode(lat, lon) {
+  // Use backend which prefers Google Maps when key is available
+  try {
+    const r = await fetch(`/api/reverse-geocode?lat=${lat}&lon=${lon}`);
+    if (r.ok) {
+      const d = await r.json();
+      if (d?.name && d.name !== 'Unknown') return d;
+    }
+  } catch (_) {}
+
+  // Fallback: Nominatim directly
   const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&accept-language=en`;
   try {
     const res = await fetch(url);
@@ -141,7 +215,8 @@ export async function reverseGeocode(lat, lon) {
         data.address.state ||
         'Selected Location';
       const country = data.address.country || '';
-      return { name, country };
+      const countryCode = (data.address.country_code || '').toUpperCase();
+      return { name, country, countryCode };
     }
     return { name: 'Selected Location', country: '' };
   } catch (err) {
@@ -167,7 +242,7 @@ function findNearestHourlyIndex(hourly, time = Date.now()) {
 function patchCurrentConditions(parsed, patch) {
   if (!patch || !parsed.hourly?.length) return;
 
-  const idx = findNearestHourlyIndex(parsed.hourly);
+  const idx = findNearestHourlyIndex(parsed.hourly); // cloudCover = (OM * 2 + WAPI * 2 + Met.no * 1) / total_weight
   if (idx < 0) return;
 
   const slot = parsed.hourly[idx];
@@ -186,6 +261,7 @@ function patchCurrentConditions(parsed, patch) {
   if (patch.windSpeed != null) parsed.current.windSpeed = patch.windSpeed;
   if (patch.visibility != null) parsed.current.visibility = patch.visibility;
   if (patch.allCloudSources) parsed.current.allCloudSources = patch.allCloudSources;
+  if (patch.cloudBaseFt != null) parsed.current.cloudBaseFt = patch.cloudBaseFt;
 }
 
 /**
@@ -193,36 +269,36 @@ function patchCurrentConditions(parsed, patch) {
  *
  * Priority chain (first source with non-null cloudCover wins):
  *   1. METAR          — real airport observation, free, no key
- *   2. WeatherAPI.com — observation-blended global, 1M free calls/mo (needs key)
- *   3. OpenWeatherMap — station + satellite blend (needs key)
- *   4. wttr.in        — public station aggregator, free (reports rain correctly)
+ *   2. WeatherAPI.com — observation-blended global, 1M free calls/mo (needs WEATHERAPI_KEY env)
+ *   3. AccuWeather    — commercial-grade observations (needs ACCUWEATHER_KEY env)
+ *   4. OpenWeatherMap — station + satellite blend (needs OWM_KEY env)
  *   5. Satellite IR   — Himawari-8 B13 infrared. Demoted: IR misses warm tropical rain clouds.
  *   6. Met.no         — model nowcast
  *   7. Open-Meteo     — model forecast, last resort
  *
  * Cloud cover is validated against the recent trend.
  */
-function buildLivePatch(satData, metarData, weatherapiData, owmData, wttrData, metNoData, parsed) {
+function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed) {
   const chain = [
-    { label: 'metar', data: metarData },
-    { label: 'weatherapi', data: weatherapiData },
-    { label: 'owm', data: owmData },
-    { label: 'wttr', data: wttrData },
-    { label: 'satellite', data: satData },
-    { label: 'metno', data: metNoData },
-    {
-      label: 'open-meteo',
-      data: parsed.current
-        ? {
-            cloudCover: parsed.current.cloudCover,
-            humidity: parsed.current.humidity,
-            visibility: parsed.current.visibility,
-            windSpeed: parsed.current.windSpeed,
-            temperature: parsed.current.temperature,
-          }
-        : null,
-    },
+    { label: 'metar', data: metarData }, // 1. Airport obs — most accurate point measurement
+    { label: 'open-meteo', data: openMeteoCurrent() }, // 2. ECMWF ensemble 9km — best free model
+    { label: 'accuweather', data: accuWeatherData }, // 3. Paid commercial — best cloud cover
+    { label: 'weatherapi', data: weatherapiData }, // 4. Paid commercial — 15-min refresh
+    { label: 'owm', data: owmData }, // 5. OpenWeatherMap — free station+satellite (needs OWM_KEY)
+    { label: 'satellite', data: satData }, // 6. Real-time IR — Himawari-8
+    { label: 'metno', data: metNoData }, // 7. ECMWF nowcast
   ].filter(s => s.data);
+
+  function openMeteoCurrent() {
+    if (!parsed.current) return null;
+    return {
+      cloudCover: parsed.current.cloudCover,
+      humidity: parsed.current.humidity,
+      visibility: parsed.current.visibility,
+      windSpeed: parsed.current.windSpeed,
+      temperature: parsed.current.temperature,
+    };
+  }
 
   if (!chain.length) return null;
 
@@ -249,7 +325,22 @@ function buildLivePatch(satData, metarData, weatherapiData, owmData, wttrData, m
       const avgOther = nonSatClouds.reduce((a, b) => a + b, 0) / nonSatClouds.length;
       if (avgOther > 60) {
         cloudCover = Math.round(avgOther);
-        chain[0].label = chain[1]?.label || 'wttr';
+        chain[0].label = chain[1]?.label || 'metno';
+      }
+    }
+  }
+
+  // Sanity check: if a single source says 0% but 2+ others say >30%, ignore the 0%
+  // (wtth.in and other free APIs sometimes report 0% when data is stale/missing)
+  if (cloudCover != null && cloudCover === 0) {
+    const otherClouds = chain
+      .filter(s => s.data.cloudCover != null && s.data.cloudCover > 0)
+      .map(s => ({ label: s.label, v: s.data.cloudCover }));
+    if (otherClouds.length >= 2) {
+      const nonZeroCount = otherClouds.filter(s => s.v > 30).length;
+      if (nonZeroCount >= 2) {
+        cloudCover = Math.round(otherClouds.reduce((a, b) => a + b.v, 0) / otherClouds.length);
+        chain[0].label = otherClouds[0].label; // attribute to first non-zero source
       }
     }
   }
@@ -270,6 +361,7 @@ function buildLivePatch(satData, metarData, weatherapiData, owmData, wttrData, m
     visibility: first('visibility'),
     source: chain[0].label,
     allCloudSources: allSources,
+    cloudBaseFt: first('cloudBaseFt'), // from METAR when available
   };
 }
 
@@ -352,6 +444,57 @@ function blendForecastClouds(hourly, metNoTimeseries, wapiTimeseries) {
   }
 }
 
+/**
+ * Merge pressure-level data (200hPa, 850hPa) into hourly slots.
+ * Used for seeing/turbulence estimation.
+ */
+function mergePressureData(hourly, pressureHourly) {
+  if (!hourly?.length || !pressureHourly?.time?.length) return;
+  for (const h of hourly) {
+    const t = h.time.getTime();
+    let best = null,
+      bestDiff = Infinity;
+    for (let i = 0; i < pressureHourly.time.length; i++) {
+      const diff = Math.abs(new Date(pressureHourly.time[i]).getTime() - t);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = i;
+      }
+    }
+    if (best != null && bestDiff < 60 * 60 * 1000) {
+      h.wind200hPa = pressureHourly.wind_speed_200hPa?.[best] ?? null;
+      h.wind850hPa = pressureHourly.wind_speed_850hPa?.[best] ?? null;
+      h.temp200hPa = pressureHourly.temperature_200hPa?.[best] ?? null;
+      h.temp850hPa = pressureHourly.temperature_850hPa?.[best] ?? null;
+    }
+  }
+}
+
+/**
+ * Merge air quality data (PM2.5, PM10, dust, AQI) into hourly slots.
+ */
+function mergeAirQualityData(hourly, aqHourly) {
+  if (!hourly?.length || !aqHourly?.time?.length) return;
+  for (const h of hourly) {
+    const t = h.time.getTime();
+    let best = null,
+      bestDiff = Infinity;
+    for (let i = 0; i < aqHourly.time.length; i++) {
+      const diff = Math.abs(new Date(aqHourly.time[i]).getTime() - t);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = i;
+      }
+    }
+    if (best != null && bestDiff < 60 * 60 * 1000) {
+      h.pm25 = aqHourly.pm2_5?.[best] ?? null;
+      h.pm10 = aqHourly.pm10?.[best] ?? null;
+      h.dust = aqHourly.dust?.[best] ?? null;
+      h.aqi = aqHourly.european_aqi?.[best] ?? null;
+    }
+  }
+}
+
 /** Return the best available snapshot for "right now". */
 export function getCurrentConditions(weatherData) {
   if (weatherData?.current) return weatherData.current;
@@ -365,7 +508,7 @@ export function getCurrentConditions(weatherData) {
 /**
  * Fetch combined weather data: past 7 days + next 7 days
  */
-export async function getWeatherData(lat, lon, timezone = 'auto') {
+export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf_ifs025') {
   const numLat = parseFloat(lat);
   const numLon = parseFloat(lon);
   if (isNaN(numLat) || isNaN(numLon) || numLat < -90 || numLat > 90 || numLon < -180 || numLon > 180) {
@@ -383,30 +526,81 @@ export async function getWeatherData(lat, lon, timezone = 'auto') {
       past_days: 7,
       forecast_days: 7,
       timezone: timezone,
-      models: 'best_match',
+      models: model,
     });
+
+  // Pressure level data for seeing estimation
+  const pressureUrl =
+    `${BASE_URL}/forecast?` +
+    new URLSearchParams({
+      latitude: numLat,
+      longitude: numLon,
+      hourly: PRESSURE_LEVEL_PARAMS,
+      forecast_days: 7,
+      timezone: timezone,
+      models: model,
+    });
+
+  // Air quality data
+  const aqUrl =
+    `${AIR_QUALITY_URL}?` +
+    new URLSearchParams({
+      latitude: numLat,
+      longitude: numLon,
+      hourly: AIR_QUALITY_PARAMS,
+      forecast_days: 7,
+      timezone: timezone,
+    });
+
   try {
-    const [weatherRes, satData, metarData, weatherapiData, owmData, wttrData, metNoData, metNoForecast, wapiForecast] =
-      await Promise.all([
-        fetch(url),
-        fetchSatelliteCloud(numLat, numLon),
-        fetchMetarCurrent(numLat, numLon),
-        fetchWeatherApiCurrent(numLat, numLon),
-        fetchOwmCurrent(numLat, numLon),
-        fetchWttrCurrent(numLat, numLon),
-        fetchMetNoCurrent(numLat, numLon),
-        fetchMetNoForecast(numLat, numLon),
-        fetchWeatherApiForecast(numLat, numLon),
-      ]);
+    const [
+      weatherRes,
+      satData,
+      metarData,
+      weatherapiData,
+      owmData,
+      metNoData,
+      metNoForecast,
+      wapiForecast,
+      accuWeatherData,
+      pressureRes,
+      airQualityRes,
+    ] = await Promise.all([
+      fetchWithTimeout(url, 20000),
+      fetchSatelliteCloud(numLat, numLon),
+      fetchMetarCurrent(numLat, numLon),
+      fetchWeatherApiCurrent(numLat, numLon),
+      fetchOwmCurrent(numLat, numLon),
+      fetchMetNoCurrent(numLat, numLon),
+      fetchMetNoForecast(numLat, numLon),
+      fetchWeatherApiForecast(numLat, numLon),
+      isAccuWeatherEnabled() ? fetchAccuWeatherCurrent(numLat, numLon) : Promise.resolve(null),
+      fetchWithTimeout(pressureUrl, 8000)
+        .then(r => (r.ok ? r.json() : null))
+        .catch(() => null),
+      fetchWithTimeout(aqUrl, 8000)
+        .then(r => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]);
     if (!weatherRes.ok) throw new Error(`Weather API error: ${weatherRes.status}`);
     const weatherJson = await weatherRes.json();
 
     const parsed = parseWeatherData(weatherJson);
 
+    // Merge pressure-level data into hourly slots
+    if (pressureRes?.hourly) {
+      mergePressureData(parsed.hourly, pressureRes.hourly);
+    }
+
+    // Merge air quality data into hourly slots
+    if (airQualityRes?.hourly) {
+      mergeAirQualityData(parsed.hourly, airQualityRes.hourly);
+    }
+
     // Blend multiple forecast sources into Open-Meteo hourly data
     blendForecastClouds(parsed.hourly, metNoForecast, wapiForecast);
 
-    const livePatch = buildLivePatch(satData, metarData, weatherapiData, owmData, wttrData, metNoData, parsed);
+    const livePatch = buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed);
 
     if (livePatch) {
       patchCurrentConditions(parsed, livePatch);
@@ -437,6 +631,15 @@ export function parseWeatherData(raw) {
     precipitation: raw.hourly.precipitation?.[i],
     weatherCode: raw.hourly.weather_code?.[i],
     isDaytime: raw.hourly.is_day?.[i] === 1,
+    // Advanced metrics (populated by merge functions)
+    wind200hPa: null,
+    wind850hPa: null,
+    temp200hPa: null,
+    temp850hPa: null,
+    pm25: null,
+    pm10: null,
+    dust: null,
+    aqi: null,
   }));
 
   const daily = (raw.daily?.time || []).map((t, i) => {

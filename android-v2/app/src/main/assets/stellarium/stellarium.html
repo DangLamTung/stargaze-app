@@ -1,19 +1,221 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<style>*{margin:0;padding:0}body{background:#000;overflow:hidden}canvas{display:block}#status{color:#fff;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:sans-serif;font-size:14px}</style></head>
-<body><div id="status">Loading Stellarium...</div>
-<script>document.getElementById("status").textContent="Loading engine...";</script>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>StarGaze Sky Map</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;overflow:hidden;background:#000}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+    #stellarium-canvas{display:block;width:100%;height:100%;position:absolute;top:0;left:0}
+    /* Status overlay */
+    #status-overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;pointer-events:none;transition:opacity .4s}
+    #status-overlay.hidden{opacity:0}
+    #status-spinner{width:44px;height:44px;border:3px solid rgba(0,200,255,.2);border-top-color:#00c8ff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #status-text{color:#ccc;font-size:14px;text-align:center;max-width:260px;line-height:1.4}
+    #status-error{color:#ff6b6b;font-size:13px;margin-top:8px;text-align:center;max-width:280px}
+    /* Controls */
+    #controls{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.85) 30%);padding:12px 12px max(12px,env(safe-area-inset-bottom));z-index:20;display:flex;flex-direction:column;gap:8px}
+    .ctrl-row{display:flex;align-items:center;gap:8px}
+    .ctrl-row label{color:#aaa;font-size:11px;min-width:36px;text-align:right}
+    .ctrl-row input[type=range]{flex:1;height:4px;-webkit-appearance:none;background:rgba(255,255,255,.15);border-radius:2px;outline:none}
+    .ctrl-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#00c8ff;border:2px solid #fff;cursor:pointer}
+    .ctrl-val{color:#00c8ff;font-size:12px;min-width:48px;text-align:left;font-variant-numeric:tabular-nums}
+    .dir-btns{display:flex;gap:6px;justify-content:center}
+    .dir-btns button{width:42px;height:36px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#ddd;font-size:16px;cursor:pointer;transition:background .15s}
+    .dir-btns button:active{background:rgba(0,200,255,.3)}
+    .toggle-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    .toggle-btn{padding:6px 12px;font-size:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:#999;cursor:pointer;transition:all .15s}
+    .toggle-btn.active{background:rgba(0,200,255,.2);border-color:#00c8ff;color:#00c8ff}
+  </style>
+</head>
+<body>
+
+<canvas id="stellarium-canvas"></canvas>
+
+<div id="status-overlay">
+  <div id="status-spinner"></div>
+  <div id="status-text">Loading Stellarium Engine…</div>
+  <div id="status-error"></div>
+</div>
+
+<div id="controls" style="visibility:hidden">
+  <div class="ctrl-row">
+    <label>⟳</label>
+    <input type="range" id="az-slider" min="0" max="360" value="0" step="1" />
+    <span class="ctrl-val" id="az-val">0°</span>
+  </div>
+  <div class="ctrl-row">
+    <label>↕</label>
+    <input type="range" id="alt-slider" min="5" max="90" value="45" step="1" />
+    <span class="ctrl-val" id="alt-val">45°</span>
+  </div>
+  <div class="ctrl-row">
+    <label>🔍</label>
+    <input type="range" id="fov-slider" min="10" max="120" value="60" step="1" />
+    <span class="ctrl-val" id="fov-val">60°</span>
+  </div>
+  <div class="dir-btns">
+    <button onclick="pointTo(0)" title="North">N</button>
+    <button onclick="pointTo(90)" title="East">E</button>
+    <button onclick="pointTo(180)" title="South">S</button>
+    <button onclick="pointTo(270)" title="West">W</button>
+  </div>
+  <div class="toggle-row">
+    <button class="toggle-btn active" id="btn-atmosphere" onclick="toggleAtmosphere()">🌫️ Atmo</button>
+    <button class="toggle-btn active" id="btn-ground"    onclick="toggleGround()">🏔️ Ground</button>
+    <button class="toggle-btn"        id="btn-lines"     onclick="toggleLines()">📐 Lines</button>
+    <button class="toggle-btn active" id="btn-labels"    onclick="toggleLabels()">🔤 Labels</button>
+    <button class="toggle-btn"        id="btn-equatorial" onclick="toggleEquatorial()">🌐 EQ</button>
+  </div>
+</div>
+
 <script src="stellarium-web-engine.js"></script>
 <script>
-document.getElementById("status").textContent="Initializing...";
-StellariumWebEngine({
-  skydataUrl: "skydata/",
-  container: document.body,
-  onReady: function() {
-    document.getElementById("status").style.display = "none";
-  },
-  onError: function(e) {
-    document.getElementById("status").textContent = "Error: " + e;
+(function(){
+  "use strict";
+  var engine=null,engineReady=false;
+  var curAz=0,curAlt=45,curFov=60,curLat=10.762622,curLon=106.660172;
+
+  var canvas=document.getElementById("stellarium-canvas");
+  var statusOverlay=document.getElementById("status-overlay");
+  var statusText=document.getElementById("status-text");
+  var statusError=document.getElementById("status-error");
+  var controls=document.getElementById("controls");
+  var azSlider=document.getElementById("az-slider");
+  var azVal=document.getElementById("az-val");
+  var altSlider=document.getElementById("alt-slider");
+  var altVal=document.getElementById("alt-val");
+  var fovSlider=document.getElementById("fov-slider");
+  var fovVal=document.getElementById("fov-val");
+
+  function log(m){console.log("[Stellarium]",m);statusText.textContent=m}
+  function err(m){console.error("[Stellarium]",m);statusError.textContent=m}
+
+  function applyObserver(){
+    if(!engine||!engine.core||!engine.core.observer)return;
+    var o=engine.core.observer;
+    o.latitude=(curLat*Math.PI)/180;o.longitude=(curLon*Math.PI)/180;
+    o.pitch=(curAlt*Math.PI)/180;o.yaw=(curAz*Math.PI)/180;
+    if(typeof engine.setFOV==="function")engine.setFOV(curFov);
   }
-});
-</script></body></html>
+
+  function showControls(){
+    statusOverlay.classList.add("hidden");
+    controls.style.visibility="visible";
+  }
+
+  function initEngine(){
+    log("Checking engine availability...");
+    if(typeof StelWebEngine==="undefined"){
+      var msg="StelWebEngine not found - script may have failed to load";
+      err(msg);
+      try{if(window.StellariumBridge&&window.StellariumBridge.onEngineError)window.StellariumBridge.onEngineError(msg)}catch(e2){}
+      return
+    }
+    log("Engine found, initializing WASM...");
+    try{
+      StelWebEngine({
+        wasmFile:"stellarium-web-engine.wasm",
+        canvas:canvas,
+        onReady:function(eng){
+          engine=eng;engineReady=true;
+          log("WASM initialized, loading catalogs...");
+          try{
+            var b="skydata/";
+            engine.core.stars.addDataSource({url:b+"stars"});
+            engine.core.skycultures.addDataSource({url:b+"skycultures/western",key:"western"});
+            engine.core.dsos.addDataSource({url:b+"dso"});
+            engine.core.planets.addDataSource({url:b+"surveys/sso/sun",key:"sun"});
+            engine.core.planets.addDataSource({url:b+"surveys/sso/moon",key:"moon"});
+            if(engine.core.milkyway)engine.core.milkyway.addDataSource({url:b+"surveys/milkyway"});
+            if(engine.core.landscapes)engine.core.landscapes.addDataSource({url:b+"landscapes/guereins",key:"guereins"});
+            if(engine.core.constellations){engine.core.constellations.lines_visible=true;engine.core.constellations.labels_visible=true}
+            if(engine.core.atmosphere)engine.core.atmosphere.visible=false;
+            if(engine.core.landscapes)engine.core.landscapes.visible=true;
+            if(engine.core.stars)engine.core.stars.hints_visible=true;
+            if(engine.core.planets)engine.core.planets.hints_visible=true;
+            if(engine.core.lines){if(engine.core.lines.equatorial)engine.core.lines.equatorial.visible=false;if(engine.core.lines.azimuthal)engine.core.lines.azimuthal.visible=false}
+            applyObserver();showControls();
+            log("Ready!");
+            try{if(window.StellariumBridge&&window.StellariumBridge.onEngineReady)window.StellariumBridge.onEngineReady()}catch(e3){console.error("Bridge call failed:",e3)}
+          }catch(e2){
+            var m2="Catalog setup failed: "+e2.message;
+            err(m2);
+            try{if(window.StellariumBridge&&window.StellariumBridge.onEngineError)window.StellariumBridge.onEngineError(m2)}catch(e4){}
+          }
+        },
+        onError:function(e){
+          var m=e&&e.message?e.message:String(e);
+          err("WASM engine error: "+m);
+          try{if(window.StellariumBridge&&window.StellariumBridge.onEngineError)window.StellariumBridge.onEngineError(m)}catch(e2){}
+        }
+      });
+    }catch(e){
+      var m2="Engine init exception: "+e.message;
+      err(m2);
+      try{if(window.StellariumBridge&&window.StellariumBridge.onEngineError)window.StellariumBridge.onEngineError(m2)}catch(e3){}
+    }
+  }
+
+  window.setLocation=function(lat,lon){
+    curLat=parseFloat(lat);curLon=parseFloat(lon);
+    if(isNaN(curLat)||isNaN(curLon))return;
+    if(engineReady)applyObserver();
+  };
+
+  window.setAzimuth=function(deg){
+    curAz=((parseFloat(deg)%360)+360)%360;
+    azSlider.value=Math.round(curAz);azVal.textContent=Math.round(curAz)+"\u00b0";
+    if(engineReady)engine.core.observer.yaw=(curAz*Math.PI)/180;
+  };
+
+  window.setAltitude=function(deg){
+    curAlt=Math.max(5,Math.min(90,parseFloat(deg)||45));
+    altSlider.value=Math.round(curAlt);altVal.textContent=Math.round(curAlt)+"\u00b0";
+    if(engineReady)engine.core.observer.pitch=(curAlt*Math.PI)/180;
+  };
+
+  window.setFov=function(deg){
+    curFov=Math.max(10,Math.min(120,parseFloat(deg)||60));
+    fovSlider.value=Math.round(curFov);fovVal.textContent=Math.round(curFov)+"\u00b0";
+    if(engineReady&&typeof engine.setFOV==="function")engine.setFOV(curFov);
+  };
+
+  window.pointTo=function(deg){window.setAzimuth(deg)};
+
+  window.toggleAtmosphere=function(){
+    var b=document.getElementById("btn-atmosphere");b.classList.toggle("active");
+    if(engine&&engine.core&&engine.core.atmosphere)engine.core.atmosphere.visible=b.classList.contains("active");
+  };
+  window.toggleGround=function(){
+    var b=document.getElementById("btn-ground");b.classList.toggle("active");
+    if(engine&&engine.core&&engine.core.landscapes)engine.core.landscapes.visible=b.classList.contains("active");
+  };
+  window.toggleLines=function(){
+    var b=document.getElementById("btn-lines");b.classList.toggle("active");
+    var on=b.classList.contains("active");
+    if(engine&&engine.core&&engine.core.lines){if(engine.core.lines.equatorial)engine.core.lines.equatorial.visible=on;if(engine.core.lines.azimuthal)engine.core.lines.azimuthal.visible=on}
+  };
+  window.toggleLabels=function(){
+    var b=document.getElementById("btn-labels");b.classList.toggle("active");
+    var on=b.classList.contains("active");
+    if(engine&&engine.core){if(engine.core.stars)engine.core.stars.hints_visible=on;if(engine.core.constellations)engine.core.constellations.labels_visible=on}
+  };
+  window.toggleEquatorial=function(){
+    var b=document.getElementById("btn-equatorial");b.classList.toggle("active");
+    if(engine&&engine.core&&engine.core.constellations&&typeof engine.core.setEquatorialMount==="function")engine.core.setEquatorialMount(b.classList.contains("active"));
+  };
+
+  azSlider.addEventListener("input",function(){window.setAzimuth(this.value)});
+  altSlider.addEventListener("input",function(){window.setAltitude(this.value)});
+  fovSlider.addEventListener("input",function(){window.setFov(this.value)});
+
+  log("Starting engine...");
+  initEngine();
+})();
+</script>
+</body>
+</html>

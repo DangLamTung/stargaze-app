@@ -47,3 +47,18 @@ interface StarGazeApi {
         @retrofit2.http.Body body: SettingsBody
     ): SettingsResponse
 }
+
+interface OpenMeteoApi {
+    @GET("https://api.open-meteo.com/v1/forecast")
+    suspend fun getForecast(
+        @Query("latitude") lat: Double,
+        @Query("longitude") lon: Double,
+        @Query("hourly") hourly: String,
+        @Query("daily") daily: String,
+        @Query("current") current: String,
+        @Query("past_days") pastDays: Int = 7,
+        @Query("forecast_days") forecastDays: Int = 7,
+        @Query("timezone") timezone: String = "auto",
+        @Query("models") models: String = "best_match"
+    ): OpenMeteoResponse
+}

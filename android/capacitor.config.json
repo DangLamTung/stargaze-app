@@ -5,5 +5,9 @@
   "server": {
     "url": "https://stargaze-app.fly.dev",
     "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "allowsLinkPreview": false
   }
 }

@@ -45,7 +45,7 @@ class CameraManager(private val context: Context) {
     )
 
     private val cameraManager =
-        context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        context.getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
 
     private var cameraDevice: CameraDevice? = null
     private var captureSession: CameraCaptureSession? = null
@@ -62,7 +62,7 @@ class CameraManager(private val context: Context) {
 
     suspend fun getBackCameraId(): String? = withContext(Dispatchers.IO) {
         if (backCameraId != null) return@withContext backCameraId
-        cameraManager.cameraIdList.forEach { id ->
+        for (id in cameraManager.cameraIdList) {
             val chars = cameraManager.getCameraCharacteristics(id)
             if (chars.get(CameraCharacteristics.LENS_FACING) == CameraMetadata.LENS_FACING_BACK) {
                 backCameraId = id

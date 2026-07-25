@@ -1,0 +1,733 @@
+/* ═══════════════════════════════════════════
+   StarGaze — AR Mode Overlay Styles
+   Compass HUD · Lens indicators · Camera controls · Holding guide
+   ═══════════════════════════════════════════ */
+
+.ar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: #000;
+  touch-action: none;
+  overflow: hidden;
+}
+
+.ar-overlay video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  transition: transform 0.15s ease;
+  will-change: transform;
+}
+
+.ar-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 1;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+}
+
+.ar-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Compass rose — center, rotates with heading */
+.ar-compass {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  height: 180px;
+  pointer-events: auto;
+  touch-action: none;
+}
+.ar-compass-face {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 255, 136, 0.3);
+  background: radial-gradient(circle, rgba(0, 20, 10, 0.5) 0%, rgba(0, 30, 15, 0.3) 60%, rgba(0, 0, 0, 0.1) 100%);
+  box-shadow:
+    0 0 30px rgba(0, 255, 136, 0.08),
+    inset 0 0 20px rgba(0, 255, 136, 0.03);
+  position: relative;
+  transition: transform 0.1s linear;
+}
+.ar-compass-tick {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  transform-origin: center center;
+}
+.ar-compass-tick::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 14px;
+  background: rgba(0, 255, 136, 0.5);
+}
+.ar-compass-tick:nth-child(3n + 1)::before {
+  height: 20px;
+  width: 1.5px;
+  background: rgba(0, 255, 136, 0.8);
+}
+.ar-compass-tick span {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%) rotate(var(--r, 0deg));
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #00ff88;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+}
+
+.ar-compass-needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 22px solid #ff4444;
+  margin-top: -85px;
+  filter: drop-shadow(0 0 4px rgba(255, 68, 68, 0.6));
+}
+
+/* Center crosshair */
+.ar-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  color: rgba(0, 255, 136, 0.7);
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+/* Camera lens focus indicator */
+.ar-lens-indicator {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+.ar-lens-ring {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 212, 255, 0.5);
+  box-shadow:
+    0 0 12px rgba(0, 212, 255, 0.2),
+    inset 0 0 12px rgba(0, 212, 255, 0.08);
+  position: relative;
+  transition:
+    width 0.15s ease,
+    height 0.15s ease,
+    border-color 0.3s;
+}
+.ar-lens-ring::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+}
+.ar-lens-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 255, 0.15);
+  mask: conic-gradient(
+    from 0deg,
+    #000 0deg 2deg,
+    transparent 2deg 28deg,
+    #000 28deg 32deg,
+    transparent 32deg 58deg,
+    #000 58deg 62deg,
+    transparent 62deg 88deg,
+    #000 88deg 92deg,
+    transparent 92deg 118deg,
+    #000 118deg 122deg,
+    transparent 122deg 148deg,
+    #000 148deg 152deg,
+    transparent 152deg 178deg,
+    #000 178deg 182deg,
+    transparent 182deg 208deg,
+    #000 208deg 212deg,
+    transparent 212deg 238deg,
+    #000 238deg 242deg,
+    transparent 242deg 268deg,
+    #000 268deg 272deg,
+    transparent 272deg 298deg,
+    #000 298deg 302deg,
+    transparent 302deg 328deg,
+    #000 328deg 332deg,
+    transparent 332deg 358deg,
+    #000 358deg 360deg
+  );
+  -webkit-mask: conic-gradient(
+    from 0deg,
+    #000 0deg 2deg,
+    transparent 2deg 28deg,
+    #000 28deg 32deg,
+    transparent 32deg 58deg,
+    #000 58deg 62deg,
+    transparent 62deg 88deg,
+    #000 88deg 92deg,
+    transparent 92deg 118deg,
+    #000 118deg 122deg,
+    transparent 122deg 148deg,
+    #000 148deg 152deg,
+    transparent 152deg 178deg,
+    #000 178deg 182deg,
+    transparent 182deg 208deg,
+    #000 208deg 212deg,
+    transparent 212deg 238deg,
+    #000 238deg 242deg,
+    transparent 242deg 268deg,
+    #000 268deg 272deg,
+    transparent 272deg 298deg,
+    #000 298deg 302deg,
+    transparent 302deg 328deg,
+    #000 328deg 332deg,
+    transparent 332deg 358deg,
+    #000 358deg 360deg
+  );
+}
+.ar-lens-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.ar-lens-mm {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #00d4ff;
+  font-family: monospace;
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+  letter-spacing: -0.5px;
+}
+.ar-lens-label {
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  transition: color 0.3s;
+}
+.ar-lens-fov {
+  font-size: 0.5rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+}
+
+.ar-lens-ring.wide {
+  width: 64px;
+  height: 64px;
+  border-color: rgba(0, 212, 255, 0.6);
+}
+.ar-lens-ring.normal {
+  width: 48px;
+  height: 48px;
+  border-color: rgba(0, 255, 136, 0.5);
+}
+.ar-lens-ring.tele {
+  width: 36px;
+  height: 36px;
+  border-color: rgba(255, 170, 0, 0.5);
+}
+.ar-lens-ring.super {
+  width: 26px;
+  height: 26px;
+  border-color: rgba(255, 68, 68, 0.5);
+}
+
+/* Buttons */
+.ar-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  pointer-events: auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ar-calibrate-btn {
+  position: absolute;
+  top: 16px;
+  right: 66px;
+  z-index: 10;
+  pointer-events: auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ar-calibrate-btn.calibrated {
+  border-color: rgba(0, 255, 136, 0.5);
+  color: #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+}
+
+.ar-capture-btn {
+  position: absolute;
+  top: 66px;
+  right: 16px;
+  z-index: 10;
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-size: 1.3rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s;
+}
+.ar-capture-btn:active {
+  border-color: #00d4ff;
+  background: rgba(0, 212, 255, 0.15);
+}
+
+.ar-cam-settings-btn {
+  position: absolute;
+  top: 116px;
+  right: 16px;
+  z-index: 10;
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ar-cam-settings-btn:active {
+  border-color: #ff9800;
+  background: rgba(255, 152, 0, 0.15);
+}
+
+.ar-cam-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ar-cam-panel.hidden {
+  display: none;
+}
+.ar-cam-panel-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+.ar-cam-card {
+  position: relative;
+  z-index: 1;
+  width: min(340px, 90vw);
+  background: rgba(10, 14, 26, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 20px;
+  color: #fff;
+}
+.ar-cam-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.ar-cam-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+.ar-cam-row span:first-child {
+  min-width: 60px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+.ar-cam-row input[type='range'] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+}
+.ar-cam-row input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ff9800;
+  cursor: pointer;
+}
+.ar-cam-val {
+  min-width: 40px;
+  text-align: right;
+  font-size: 0.8rem;
+  color: #ff9800;
+  font-weight: 600;
+}
+.ar-cam-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  justify-content: center;
+}
+.ar-cam-actions button {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.ar-cam-actions button:active {
+  background: rgba(255, 152, 0, 0.2);
+}
+
+.ar-sky-container {
+  position: absolute;
+  inset: 0;
+  border: none;
+  pointer-events: auto;
+  touch-action: none;
+  mix-blend-mode: screen;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.ar-controls {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 4px 8px;
+  pointer-events: auto;
+  z-index: 30;
+  width: min(260px, 94vw);
+  max-height: 36vh;
+  overflow-y: auto;
+  gap: 0;
+  padding: 3px 6px;
+}
+.ar-controls.collapsed > :not(.ar-controls-toggle) {
+  display: none;
+}
+.ar-controls.collapsed {
+  padding: 4px 10px;
+  min-height: 28px;
+}
+.ar-controls-toggle {
+  display: block;
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px 9px 0 0;
+  border-bottom: none;
+  color: #888;
+  font-size: 10px;
+  cursor: pointer;
+  text-align: center;
+  line-height: 16px;
+  z-index: 31;
+}
+.ar-controls input[type='range'] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  margin: 0 4px;
+}
+.ar-controls input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.ar-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  font-size: 0.6rem;
+  margin-bottom: 1px;
+}
+.ar-slider-row label {
+  min-width: 28px;
+  font-size: 0.6rem;
+  color: #889;
+  flex-shrink: 0;
+  text-align: right;
+}
+.ar-slider-row input[type='range'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.ar-time-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+.ar-adj-btn {
+  font-size: 5px !important;
+  padding: 0 8px !important;
+}
+.ar-play-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  font-size: 10px !important;
+}
+
+.ar-ctrl-val {
+  font-size: 0.6rem;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.8);
+  min-width: 28px;
+  text-align: right;
+}
+.ar-toggle-row {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 1px;
+}
+.ar-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 21;
+}
+.ar-toggle-btn.active {
+  background: rgba(0, 255, 136, 0.15);
+  border-color: rgba(0, 255, 136, 0.4);
+  color: #00ff88;
+}
+
+#ar-debug {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  color: #0f0;
+  font-size: 8px;
+  font-family: monospace;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 3px 6px;
+  border-radius: 4px;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 5;
+}
+
+.ar-guide-overlay {
+  display: none;
+}
+.ar-guide-overlay.show {
+  display: flex;
+}
+
+.ar-bortle-badge {
+  transition: background 0.3s;
+}
+
+.ar-bortle-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ar-bortle-overlay.hidden {
+  display: none;
+}
+.ar-bortle-overlay-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+}
+.ar-bortle-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(10, 14, 40, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 20px;
+  max-width: 320px;
+  width: 90%;
+  text-align: center;
+  pointer-events: auto;
+}
+.ar-bortle-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #00d4ff;
+  margin-bottom: 8px;
+}
+.ar-bortle-hint {
+  font-size: 0.7rem;
+  color: #889;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+.ar-bortle-result {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.ar-bortle-class {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #00ff88;
+  text-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+}
+.ar-bortle-label {
+  font-size: 0.75rem;
+  color: #aac;
+}
+.ar-bortle-sample {
+  width: 100%;
+  height: 60px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.ar-bortle-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.ar-bortle-measure,
+.ar-bortle-close {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: rgba(0, 212, 255, 0.15);
+  color: #fff;
+}
+.ar-bortle-measure {
+  background: rgba(0, 255, 136, 0.15);
+  border-color: rgba(0, 255, 136, 0.3);
+}
+.ar-bortle-measure:active {
+  background: rgba(0, 255, 136, 0.3);
+}
+
+.ar-bortle-btn {
+  z-index: 10;
+  position: absolute;
+  top: 166px;
+  right: 16px;
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(100, 200, 255, 0.3);
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

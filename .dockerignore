@@ -1,2 +1,37 @@
+# Docker ignore — keep build context small
+node_modules/
+.git/
+.gitignore
+*.md
 fly.toml
 .venv
+__pycache__/
+*.pyc
+*.pyo
+backend/__pycache__/
+
+# Android build artifacts (219 MB wasted!)
+android-v2/
+android/
+
+# iOS
+ios/
+
+# Test/debug HTML files (not needed for production)
+debug-stellarium.html
+notification-test.html
+test-engine.html
+test-notifications.html
+# NOTE: test-skydata/ is the Stellarium star/dso/constellation data — DO NOT exclude
+
+# Environment — keep .env (contains API keys needed at runtime), but ignore backups
+.env.*
+
+# Mac
+.DS_Store
+
+# Capacitor build
+www/
+
+# Use compressed version instead (14 MB -> 1.7 MB)
+cities5000.txt

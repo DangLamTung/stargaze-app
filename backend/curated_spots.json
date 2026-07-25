@@ -42,5 +42,137 @@
     "longitude": 109.0142,
     "bortle": 2,
     "type": "milky_way_spot"
+  },
+  {
+    "id": 5,
+    "name": "Vịnh Hạ Long",
+    "description": "Sheltered by 1,600 limestone islands — glassy mirror water at dawn, world-class seascapes.",
+    "admin1": "Quảng Ninh",
+    "country": "Vietnam",
+    "latitude": 20.9101,
+    "longitude": 107.1839,
+    "bortle": 4,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 6,
+    "name": "Vịnh Lan Hạ",
+    "description": "Quieter than Hạ Long, perfectly sheltered for mirror-flat water and kayaking.",
+    "admin1": "Hải Phòng",
+    "country": "Vietnam",
+    "latitude": 20.7238,
+    "longitude": 107.0486,
+    "bortle": 4,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 7,
+    "name": "Côn Đảo (Bãi Đầm Trầu)",
+    "description": "Crystal-clear sheltered bay, often glassy calm — perfect mirror sea photography.",
+    "admin1": "Bà Rịa - Vũng Tàu",
+    "country": "Vietnam",
+    "latitude": 8.6934,
+    "longitude": 106.6086,
+    "bortle": 2,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 8,
+    "name": "Bãi Sao (Phú Quốc)",
+    "description": "Famous powdery white sand, sheltered western beach with famously calm clear water.",
+    "admin1": "Kiên Giang",
+    "country": "Vietnam",
+    "latitude": 10.0443,
+    "longitude": 103.9593,
+    "bortle": 3,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 9,
+    "name": "Vịnh Vĩnh Hy",
+    "description": "Deep sheltered bay between mountains, often windless with mirror-flat turquoise water.",
+    "admin1": "Ninh Thuận",
+    "country": "Vietnam",
+    "latitude": 11.3996,
+    "longitude": 109.0139,
+    "bortle": 3,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 10,
+    "name": "Đầm Ô Loan",
+    "description": "Peaceful lagoon near Tuy Hòa, famous for sunset mirror reflections over still water.",
+    "admin1": "Phú Yên",
+    "country": "Vietnam",
+    "latitude": 13.1687,
+    "longitude": 109.2910,
+    "bortle": 4,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 11,
+    "name": "Bãi Dài (Cam Ranh)",
+    "description": "Long sheltered bay stretching 13km with consistently calm, mirror-like water.",
+    "admin1": "Khánh Hòa",
+    "country": "Vietnam",
+    "latitude": 11.8956,
+    "longitude": 109.1638,
+    "bortle": 3,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 12,
+    "name": "Hồ Cốc",
+    "description": "Secluded beach with calm waters, backed by forest — mirror conditions in mornings.",
+    "admin1": "Bà Rịa - Vũng Tàu",
+    "country": "Vietnam",
+    "latitude": 10.3931,
+    "longitude": 107.3711,
+    "bortle": 4,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 13,
+    "name": "Đầm Nha Phu",
+    "description": "Shallow lagoon north of Nha Trang, extremely sheltered — glass water almost year-round.",
+    "admin1": "Khánh Hòa",
+    "country": "Vietnam",
+    "latitude": 12.3689,
+    "longitude": 109.2222,
+    "bortle": 4,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 14,
+    "name": "Bãi Dứa (Nha Trang)",
+    "description": "Small sheltered cove on Hòn Tre island, famously calm and clear — mirror sea at sunrise.",
+    "admin1": "Khánh Hòa",
+    "country": "Vietnam",
+    "latitude": 12.2029,
+    "longitude": 109.2711,
+    "bortle": 4,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 15,
+    "name": "Biển Vô Cực (Thái Bình)",
+    "description": "Endless flat beach at low tide — famous mirror-like reflection stretching to the horizon.",
+    "admin1": "Thái Bình",
+    "country": "Vietnam",
+    "latitude": 20.3517,
+    "longitude": 106.5716,
+    "bortle": 4,
+    "type": "mirror_sea"
+  },
+  {
+    "id": 16,
+    "name": "Biển Vô Cực (Mỹ Đức)",
+    "description": "Tidal flat beach with immense mirror reflections — photographers' paradise at dawn and dusk.",
+    "admin1": "Hà Tĩnh",
+    "country": "Vietnam",
+    "latitude": 18.3282,
+    "longitude": 106.1051,
+    "bortle": 3,
+    "type": "mirror_sea"
   }
 ]

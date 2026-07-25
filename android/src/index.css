@@ -440,8 +440,13 @@ main {
 }
 
 .layer-control-group {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; flex-direction: column; gap: 0.4rem;
   font-size: 0.8rem; color: var(--text-secondary);
+}
+
+.layer-control-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%;
 }
 
 .layer-select {
@@ -471,10 +476,14 @@ main {
   font-family: monospace;
 }
 
-.cloud-opacity-slider {
-  width: 80px; height: 4px;
-  accent-color: var(--accent-cyan);
-  cursor: pointer;
+#cloud-opacity-slider, #lp-opacity-slider, #bearing-slider, #cloud-time-slider {
+  height: 24px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; margin: 0; width: 100%;
+}
+#cloud-opacity-slider::-webkit-slider-runnable-track, #lp-opacity-slider::-webkit-slider-runnable-track, #bearing-slider::-webkit-slider-runnable-track, #cloud-time-slider::-webkit-slider-runnable-track {
+  height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px;
+}
+#cloud-opacity-slider::-webkit-slider-thumb, #lp-opacity-slider::-webkit-slider-thumb, #bearing-slider::-webkit-slider-thumb, #cloud-time-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #00d4ff; border: 2px solid #fff; margin-top: -5px; cursor: pointer; box-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
 }
 
 /* Map marker styles */

@@ -10,33 +10,26 @@ from .utils import bortle_cache
 
 
 def get_color_class(r, g, b):
-    if max(r, g, b) == 0:
-        return "1"
-    elif max(r, g, b) < 15:
-        return "2"
-
-    h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
-    h_deg = h * 360
-
-    if v < 0.2 and h_deg > 200:
-        return "3"
-    elif h_deg > 200:
-        return "4"
-    elif h_deg > 120:
-        return "4"
-    elif h_deg > 60:
-        return "5"
-    elif h_deg > 30:
-        return "6"
-    elif h_deg > 10:
-        return "7"
-    elif s < 0.5:
-        return "9"
-    return "8"
+    """Map VIIRS pixel RGB to Bortle class — calibrated to lightpollutionmap.info color scale.
+    
+    Color scale: black → dark blue → blue → green → yellow → orange → red → pink → white
+    Based on Falchi et al. (2016) radiance-to-Bortle mapping.
+    """
+    lum = max(r, g, b)
+    
+    if lum <= 2:  return 1   # black — pristine
+    if lum <= 5:  return 2   # very dark blue
+    if lum <= 10: return 3   # dark blue
+    if lum <= 25: return 4   # blue-green transition
+    if lum <= 50: return 5   # green-yellow (suburban)
+    if lum <= 80: return 6   # yellow-orange
+    if lum <= 130: return 7  # orange-red (bright suburb/small city)
+    if lum <= 200: return 8  # red (city)
+    return 9                  # pink-white (city center)
 
 
 def get_bortle_class(lat, lon):
-    zoom = 6
+    zoom = 8  # Higher zoom = ~600m/pixel (was zoom 6 = ~2.4km/pixel)
     lat_rad = math.radians(lat)
     n = 2.0**zoom
     x = (lon + 180.0) / 360.0 * n
@@ -64,34 +57,93 @@ def get_bortle_class(lat, lon):
                 bortle_cache[cache_key] = response.read()
 
         img = Image.open(io.BytesIO(bortle_cache[cache_key])).convert("RGBA")
-        pixel_val = img.getpixel((xpixel, ypixel))
 
-        r, g, b = pixel_val[0], pixel_val[1], pixel_val[2]
-        bortle = get_color_class(r, g, b)
-        
-        # Distance-based light dome adjustment
-        if bortle in ["1", "2", "3"]:
-            from .utils import geonames_cities, haversine
-            for city in geonames_cities:
-                if city["population"] > 500000:
-                    dist = haversine(lat, lon, city["latitude"], city["longitude"])
-                    if dist < 25:
-                        return "6"
-                    elif dist < 45:
-                        return "5"
-                    elif dist < 65:
-                        return "4"
-                elif city["population"] > 100000:
-                    dist = haversine(lat, lon, city["latitude"], city["longitude"])
-                    if dist < 15:
-                        return "5"
-                    elif dist < 25:
-                        return "4"
-                    elif dist < 35:
-                        return "3"
-        return bortle
+        # Sample a 5×5 pixel region, take MAX brightness
+        max_bortle = 0
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                px = max(0, min(255, xpixel + dx))
+                py = max(0, min(255, ypixel + dy))
+                try:
+                    pixel_val = img.getpixel((px, py))
+                    r, g, b = pixel_val[0], pixel_val[1], pixel_val[2]
+                    bclass = get_color_class(r, g, b)
+                    if bclass > max_bortle:
+                        max_bortle = bclass
+                except Exception:
+                    pass
+
+        # If no data at this point (all black pixels = Bortle 1),
+        # do a quick expanding search to find nearest non-zero pixel
+        if max_bortle <= 1:
+            for radius in range(5, 128, 10):  # reduced range for speed
+                found = False
+                step = max(2, radius // 5)
+                for dx in range(-radius, radius + 1, step):
+                    for dy in range(-radius, radius + 1, step):
+                        px = max(0, min(255, xpixel + dx))
+                        py = max(0, min(255, ypixel + dy))
+                        try:
+                            pixel_val = img.getpixel((px, py))
+                            r, g, b = pixel_val[0], pixel_val[1], pixel_val[2]
+                            bclass = get_color_class(r, g, b)
+                            if bclass > 1:
+                                dist_km = max(abs(dx), abs(dy)) * 0.6
+                                discount = int(dist_km / 15)
+                                max_bortle = max(1, bclass - discount)
+                                found = True
+                                break
+                        except Exception:
+                            pass
+                    if found:
+                        break
+                if found:
+                    break
+
+        bortle_int = max_bortle if max_bortle > 0 else 5
+
+        # Distance-based city light dome boost
+        from .utils import geonames_cities, haversine
+        for city in geonames_cities:
+            dist = haversine(lat, lon, city["latitude"], city["longitude"])
+            if city["population"] > 500000:
+                if dist < 8:
+                    bortle_int = max(bortle_int, 9)
+                elif dist < 15:
+                    bortle_int = max(bortle_int, 8)
+                elif dist < 25:
+                    bortle_int = max(bortle_int, 7)
+                elif dist < 40:
+                    bortle_int = max(bortle_int, 6)
+            elif city["population"] > 100000:
+                if dist < 5:
+                    bortle_int = max(bortle_int, 7)
+                elif dist < 12:
+                    bortle_int = max(bortle_int, 6)
+                elif dist < 20:
+                    bortle_int = max(bortle_int, 5)
+
+        return str(bortle_int)
 
     except Exception as e:
         print("Failed to read dataset tile:", e)
 
     return "Unknown"
+
+
+def bortle_to_sqm(bortle_class):
+    """Convert Bortle class to approximate SQM (mag/arcsec²).
+    Based on the standard Bortle-to-SQM conversion table.
+    """
+    mapping = {
+        1: 21.9,  # pristine dark sky
+        2: 21.6,
+        3: 21.4,
+        4: 20.9,
+        5: 20.4,
+        6: 19.5,
+        7: 18.5,
+        8: 17.5,
+        9: 16.5,  # inner city
+    }
+    return mapping.get(bortle_class, 18.0)

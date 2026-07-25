@@ -11,7 +11,7 @@ data class NightScore(
     val month: String,
     val score: Int,
     val rating: String,
-    val ratingColor: ULong, // ARGB color
+    val ratingColor: Long, // ARGB color
 
     // Component scores
     val cloudCoverScore: Int,
@@ -67,12 +67,12 @@ fun getScoreRating(score: Int): String = when {
     else -> "Bad"
 }
 
-fun getScoreColor(score: Int): ULong = when {
-    score >= 80 -> 0xFF_00E676u
-    score >= 60 -> 0xFF_76FF03u
-    score >= 40 -> 0xFF_FFEB3Bu
-    score >= 20 -> 0xFF_FF9800u
-    else -> 0xFF_F44336u
+fun getScoreColor(score: Int): Long = when {
+    score >= 80 -> 0xFF00E676L
+    score >= 60 -> 0xFF76FF03L
+    score >= 40 -> 0xFFFFEB3BL
+    score >= 20 -> 0xFFFF9800L
+    else -> 0xFFF44336L
 }
 
 fun scoreIcon(score: Int): String = when {

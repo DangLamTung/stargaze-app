@@ -1,378 +1,525 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StarGaze — Notification Test Suite</title>
-  <style>
-    :root {
-      --bg: #060b19;
-      --card: rgba(255,255,255,0.05);
-      --border: rgba(255,255,255,0.1);
-      --accent: #00d4ff;
-      --pass: #22c55e;
-      --fail: #ef4444;
-      --warn: #f59e0b;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 24px;
-    }
-    h1 { font-size: 1.5rem; margin-bottom: 4px; }
-    .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
-    .test-grid { display: flex; flex-direction: column; gap: 12px; max-width: 700px; }
-    .test-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      transition: border-color 0.2s;
-    }
-    .test-card.running { border-color: var(--warn); }
-    .test-card.pass { border-color: var(--pass); }
-    .test-card.fail { border-color: var(--fail); }
-    .test-card.info { border-color: var(--accent); }
-    .test-icon { font-size: 1.6rem; flex-shrink: 0; width: 36px; text-align: center; }
-    .test-info { flex: 1; min-width: 0; }
-    .test-name { font-weight: 600; font-size: 0.95rem; }
-    .test-desc { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
-    .test-result { font-size: 0.8rem; margin-top: 4px; }
-    .test-result.pass { color: var(--pass); }
-    .test-result.fail { color: var(--fail); }
-    .test-result.warn { color: var(--warn); }
-    .test-result.info { color: var(--accent); }
-    .test-btn {
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 8px 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      white-space: nowrap;
-      transition: background 0.2s;
-    }
-    .test-btn:hover { background: rgba(255,255,255,0.15); }
-    .test-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .summary {
-      margin-top: 24px;
-      padding: 16px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      max-width: 700px;
-    }
-    .summary h2 { font-size: 1.1rem; margin-bottom: 8px; }
-    .summary-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.9rem; }
-    .run-all-btn {
-      background: var(--accent);
-      color: #000;
-      border: none;
-      padding: 10px 24px;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-bottom: 16px;
-      font-size: 0.9rem;
-    }
-    .run-all-btn:hover { opacity: 0.85; }
-  </style>
-</head>
-<body>
-  <h1>🔔 StarGaze Notification Test Suite</h1>
-  <p class="subtitle">Tests all notification paths — browser, service worker, email backend, watcher logic, and Android Capacitor</p>
-
-  <div id="env-badge" style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.8rem;margin-bottom:16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);">
-    🌐 Web Browser
-  </div>
-
-  <button class="run-all-btn" id="run-all">▶ Run All Tests</button>
-
-  <div class="test-grid" id="test-grid">
-    <!-- Tests populated by JS -->
-  </div>
-
-  <div class="summary" id="summary">
-    <h2>📊 Results</h2>
-    <div id="summary-content">Click "Run All Tests" or individual test buttons.</div>
-  </div>
-
-  <script>
-    const API_BASE = '';
-    const tests = [];
-
-    // ── Detect environment ──
-    const isCapacitor = !!(window.Capacitor || (navigator.userAgent.includes('StarGaze')));
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const badge = document.getElementById('env-badge');
-    if (isCapacitor || isAndroid) {
-      badge.textContent = isAndroid ? '📱 Android Capacitor WebView' : '📱 Capacitor WebView';
-      badge.style.background = 'rgba(0,212,255,0.12)';
-      badge.style.borderColor = 'var(--accent)';
-    }
-
-    // ── Helper ──
-    function setStatus(testId, status, text) {
-      const card = document.querySelector(`.test-card[data-id="${testId}"]`);
-      if (!card) { console.warn('setStatus: card not found for', testId); return; }
-      card.className = `test-card ${status}`;
-      const el = card.querySelector('.test-result');
-      if (el) {
-        el.className = `test-result ${status}`;
-        el.textContent = text;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StarGaze — Notification Test Suite</title>
+    <style>
+      :root {
+        --bg: #060b19;
+        --card: rgba(255, 255, 255, 0.05);
+        --border: rgba(255, 255, 255, 0.1);
+        --accent: #00d4ff;
+        --pass: #22c55e;
+        --fail: #ef4444;
+        --warn: #f59e0b;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
       }
-    }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 4px;
+      }
+      .subtitle {
+        color: var(--muted);
+        margin-bottom: 24px;
+        font-size: 0.9rem;
+      }
+      .test-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 700px;
+      }
+      .test-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: border-color 0.2s;
+      }
+      .test-card.running {
+        border-color: var(--warn);
+      }
+      .test-card.pass {
+        border-color: var(--pass);
+      }
+      .test-card.fail {
+        border-color: var(--fail);
+      }
+      .test-card.info {
+        border-color: var(--accent);
+      }
+      .test-icon {
+        font-size: 1.6rem;
+        flex-shrink: 0;
+        width: 36px;
+        text-align: center;
+      }
+      .test-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .test-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+      .test-desc {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin-top: 2px;
+      }
+      .test-result {
+        font-size: 0.8rem;
+        margin-top: 4px;
+      }
+      .test-result.pass {
+        color: var(--pass);
+      }
+      .test-result.fail {
+        color: var(--fail);
+      }
+      .test-result.warn {
+        color: var(--warn);
+      }
+      .test-result.info {
+        color: var(--accent);
+      }
+      .test-btn {
+        flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        transition: background 0.2s;
+      }
+      .test-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .test-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .summary {
+        margin-top: 24px;
+        padding: 16px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        max-width: 700px;
+      }
+      .summary h2 {
+        font-size: 1.1rem;
+        margin-bottom: 8px;
+      }
+      .summary-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+        font-size: 0.9rem;
+      }
+      .run-all-btn {
+        background: var(--accent);
+        color: #000;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-bottom: 16px;
+        font-size: 0.9rem;
+      }
+      .run-all-btn:hover {
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔔 StarGaze Notification Test Suite</h1>
+    <p class="subtitle">
+      Tests all notification paths — browser, service worker, email backend, watcher logic, and Android Capacitor
+    </p>
 
-    // ── Test 1: Browser Notification API ──
-    function testBrowserNotification() {
-      const id = 'browser-api';
-      setStatus(id, 'running', 'Testing...');
-      if (!('Notification' in window)) {
-        setStatus(id, 'fail', '❌ Notification API not available in this browser');
-        return;
-      }
-      const perm = Notification.permission;
-      if (perm === 'granted') {
-        setStatus(id, 'pass', '✅ Permission granted — browser notifications ready');
-      } else if (perm === 'denied') {
-        setStatus(id, 'fail', '⚠️ Permission denied — user must re-enable in browser settings');
-      } else {
-        setStatus(id, 'warn', '⏳ Permission not yet requested — will prompt on first use');
-      }
-    }
+    <div
+      id="env-badge"
+      style="
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        margin-bottom: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border);
+      "
+    >
+      🌐 Web Browser
+    </div>
 
-    // ── Test 2: Send a real browser notification ──
-    function testSendBrowserNotification() {
-      const id = 'browser-send';
-      setStatus(id, 'running', 'Sending...');
-      if (!('Notification' in window)) {
-        setStatus(id, 'fail', '❌ Notifications not supported');
-        return;
-      }
-      if (Notification.permission !== 'granted') {
-        Notification.requestPermission().then(perm => {
-          if (perm === 'granted') {
-            const n = new Notification('✅ StarGaze Test', {
-              body: 'If you see this, browser notifications work! Score: 95/100 🌌',
-              icon: '/favicon.ico',
-              tag: 'stargaze-test',
-            });
-            setTimeout(() => n.close(), 5000);
-            setStatus(id, 'pass', '✅ Notification sent — check your screen');
-          } else {
-            setStatus(id, 'fail', '❌ Permission denied');
-          }
-        });
-      } else {
-        const n = new Notification('✅ StarGaze Test', {
-          body: 'If you see this, browser notifications work! Score: 95/100 🌌',
-          icon: '/favicon.ico',
-          tag: 'stargaze-test',
-        });
-        setTimeout(() => n.close(), 5000);
-        setStatus(id, 'pass', '✅ Notification sent — check your screen');
-      }
-    }
+    <button class="run-all-btn" id="run-all">▶ Run All Tests</button>
 
-    // ── Test 3: Service Worker registration ──
-    async function testServiceWorker() {
-      const id = 'sw-reg';
-      setStatus(id, 'running', 'Checking...');
-      if (!('serviceWorker' in navigator)) {
-        setStatus(id, 'fail', '❌ Service Worker not supported');
-        return;
-      }
-      try {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        const found = regs.find(r => r.scope.includes(window.location.origin));
-        if (found) {
-          setStatus(id, 'pass', `✅ SW registered (scope: ${found.scope})`);
-        } else {
-          // Try to register
-          try {
-            const reg = await navigator.serviceWorker.register('/sw.js');
-            setStatus(id, 'pass', `✅ SW registered on the fly (scope: ${reg.scope})`);
-          } catch (e) {
-            setStatus(id, 'fail', `❌ Not registered & failed to register: ${e.message}`);
-          }
-        }
-      } catch (e) {
-        setStatus(id, 'fail', `❌ Error: ${e.message}`);
-      }
-    }
+    <div class="test-grid" id="test-grid">
+      <!-- Tests populated by JS -->
+    </div>
 
-    // ── Test 4: SW notification click handler ──
-    async function testSWNotificationClick() {
-      const id = 'sw-click';
-      setStatus(id, 'running', 'Testing...');
-      if (!('serviceWorker' in navigator)) {
-        setStatus(id, 'fail', '❌ SW not supported');
-        return;
+    <div class="summary" id="summary">
+      <h2>📊 Results</h2>
+      <div id="summary-content">Click "Run All Tests" or individual test buttons.</div>
+    </div>
+
+    <script>
+      const API_BASE = '';
+      const tests = [];
+
+      // ── Detect environment ──
+      const isCapacitor = !!(window.Capacitor || navigator.userAgent.includes('StarGaze'));
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const badge = document.getElementById('env-badge');
+      if (isCapacitor || isAndroid) {
+        badge.textContent = isAndroid ? '📱 Android Capacitor WebView' : '📱 Capacitor WebView';
+        badge.style.background = 'rgba(0,212,255,0.12)';
+        badge.style.borderColor = 'var(--accent)';
       }
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        if (!reg) {
-          setStatus(id, 'fail', '❌ No active SW');
+
+      // ── Helper ──
+      function setStatus(testId, status, text) {
+        const card = document.querySelector(`.test-card[data-id="${testId}"]`);
+        if (!card) {
+          console.warn('setStatus: card not found for', testId);
           return;
         }
-        // Send a test message to SW to verify it's alive
-        const mc = new MessageChannel();
-        const result = await new Promise((resolve, reject) => {
-          mc.port1.onmessage = e => resolve(e.data);
-          mc.port1.onmessageerror = () => reject(new Error('Message error'));
-          reg.active.postMessage({ type: 'PING' }, [mc.port2]);
-          setTimeout(() => reject(new Error('Timeout')), 2000);
-        });
-        setStatus(id, 'pass', `✅ SW responded: ${JSON.stringify(result)}`);
-      } catch (e) {
-        // SW might not handle PING — check if it at least exists
-        const regs = await navigator.serviceWorker.getRegistrations();
-        if (regs.length > 0 && regs[0].active) {
-          setStatus(id, 'warn', `⚠️ SW exists but PING failed: ${e.message}`);
-        } else {
-          setStatus(id, 'fail', `❌ No active SW: ${e.message}`);
+        card.className = `test-card ${status}`;
+        const el = card.querySelector('.test-result');
+        if (el) {
+          el.className = `test-result ${status}`;
+          el.textContent = text;
         }
       }
-    }
 
-    // ── Test 5: Backend /api/test-notification (email) ──
-    async function testBackendEmail() {
-      const id = 'backend-email';
-      setStatus(id, 'running', 'Calling API...');
-      try {
-        const res = await fetch('/api/test-notification', { method: 'POST' });
-        const text = await res.text();
-        if (res.ok) {
-          setStatus(id, 'pass', `✅ Backend sent test email: ${text}`);
-        } else {
-          setStatus(id, 'warn', `⚠️ Backend returned ${res.status}: ${text.substring(0, 120)}`);
+      // ── Test 1: Browser Notification API ──
+      function testBrowserNotification() {
+        const id = 'browser-api';
+        setStatus(id, 'running', 'Testing...');
+        if (!('Notification' in window)) {
+          setStatus(id, 'fail', '❌ Notification API not available in this browser');
+          return;
         }
-      } catch (e) {
-        setStatus(id, 'fail', `❌ Request failed: ${e.message}`);
-      }
-    }
-
-    // ── Test 6: Backend /api/settings reachability ──
-    async function testSettingsAPI() {
-      const id = 'settings-api';
-      setStatus(id, 'running', 'Calling API...');
-      try {
-        const res = await fetch('/api/settings');
-        if (res.ok) {
-          const data = await res.json();
-          const hasEmail = !!(data.email && data.password);
-          setStatus(id, hasEmail ? 'pass' : 'warn',
-            hasEmail ? '✅ Settings API OK, email configured' : '⚠️ Settings API OK but email not configured');
+        const perm = Notification.permission;
+        if (perm === 'granted') {
+          setStatus(id, 'pass', '✅ Permission granted — browser notifications ready');
+        } else if (perm === 'denied') {
+          setStatus(id, 'fail', '⚠️ Permission denied — user must re-enable in browser settings');
         } else {
-          setStatus(id, 'warn', `⚠️ Settings API returned ${res.status}`);
+          setStatus(id, 'warn', '⏳ Permission not yet requested — will prompt on first use');
         }
-      } catch (e) {
-        setStatus(id, 'fail', `❌ Failed: ${e.message}`);
       }
-    }
 
-    // ── Test 7: Forecast watcher logic (simulated) ──
-    function testForecastWatcher() {
-      const id = 'forecast-watcher';
-      const mockScores = [
-        { date: '2026-06-08', score: 88, rating: 'Excellent', ratingColor: '#22c55e' },
-        { date: '2026-06-09', score: 45, rating: 'Poor', ratingColor: '#ef4444' },
-        { date: '2026-06-10', score: 92, rating: 'Excellent', ratingColor: '#22c55e' },
+      // ── Test 2: Send a real browser notification ──
+      function testSendBrowserNotification() {
+        const id = 'browser-send';
+        setStatus(id, 'running', 'Sending...');
+        if (!('Notification' in window)) {
+          setStatus(id, 'fail', '❌ Notifications not supported');
+          return;
+        }
+        if (Notification.permission !== 'granted') {
+          Notification.requestPermission().then(perm => {
+            if (perm === 'granted') {
+              const n = new Notification('✅ StarGaze Test', {
+                body: 'If you see this, browser notifications work! Score: 95/100 🌌',
+                icon: '/favicon.ico',
+                tag: 'stargaze-test',
+              });
+              setTimeout(() => n.close(), 5000);
+              setStatus(id, 'pass', '✅ Notification sent — check your screen');
+            } else {
+              setStatus(id, 'fail', '❌ Permission denied');
+            }
+          });
+        } else {
+          const n = new Notification('✅ StarGaze Test', {
+            body: 'If you see this, browser notifications work! Score: 95/100 🌌',
+            icon: '/favicon.ico',
+            tag: 'stargaze-test',
+          });
+          setTimeout(() => n.close(), 5000);
+          setStatus(id, 'pass', '✅ Notification sent — check your screen');
+        }
+      }
+
+      // ── Test 3: Service Worker registration ──
+      async function testServiceWorker() {
+        const id = 'sw-reg';
+        setStatus(id, 'running', 'Checking...');
+        if (!('serviceWorker' in navigator)) {
+          setStatus(id, 'fail', '❌ Service Worker not supported');
+          return;
+        }
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          const found = regs.find(r => r.scope.includes(window.location.origin));
+          if (found) {
+            setStatus(id, 'pass', `✅ SW registered (scope: ${found.scope})`);
+          } else {
+            // Try to register
+            try {
+              const reg = await navigator.serviceWorker.register('/sw.js');
+              setStatus(id, 'pass', `✅ SW registered on the fly (scope: ${reg.scope})`);
+            } catch (e) {
+              setStatus(id, 'fail', `❌ Not registered & failed to register: ${e.message}`);
+            }
+          }
+        } catch (e) {
+          setStatus(id, 'fail', `❌ Error: ${e.message}`);
+        }
+      }
+
+      // ── Test 4: SW notification click handler ──
+      async function testSWNotificationClick() {
+        const id = 'sw-click';
+        setStatus(id, 'running', 'Testing...');
+        if (!('serviceWorker' in navigator)) {
+          setStatus(id, 'fail', '❌ SW not supported');
+          return;
+        }
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          if (!reg) {
+            setStatus(id, 'fail', '❌ No active SW');
+            return;
+          }
+          // Send a test message to SW to verify it's alive
+          const mc = new MessageChannel();
+          const result = await new Promise((resolve, reject) => {
+            mc.port1.onmessage = e => resolve(e.data);
+            mc.port1.onmessageerror = () => reject(new Error('Message error'));
+            reg.active.postMessage({ type: 'PING' }, [mc.port2]);
+            setTimeout(() => reject(new Error('Timeout')), 2000);
+          });
+          setStatus(id, 'pass', `✅ SW responded: ${JSON.stringify(result)}`);
+        } catch (e) {
+          // SW might not handle PING — check if it at least exists
+          const regs = await navigator.serviceWorker.getRegistrations();
+          if (regs.length > 0 && regs[0].active) {
+            setStatus(id, 'warn', `⚠️ SW exists but PING failed: ${e.message}`);
+          } else {
+            setStatus(id, 'fail', `❌ No active SW: ${e.message}`);
+          }
+        }
+      }
+
+      // ── Test 5: Backend /api/test-notification (email) ──
+      async function testBackendEmail() {
+        const id = 'backend-email';
+        setStatus(id, 'running', 'Calling API...');
+        try {
+          const res = await fetch('/api/test-notification', { method: 'POST' });
+          const text = await res.text();
+          if (res.ok) {
+            setStatus(id, 'pass', `✅ Backend sent test email: ${text}`);
+          } else {
+            setStatus(id, 'warn', `⚠️ Backend returned ${res.status}: ${text.substring(0, 120)}`);
+          }
+        } catch (e) {
+          setStatus(id, 'fail', `❌ Request failed: ${e.message}`);
+        }
+      }
+
+      // ── Test 6: Backend /api/settings reachability ──
+      async function testSettingsAPI() {
+        const id = 'settings-api';
+        setStatus(id, 'running', 'Calling API...');
+        try {
+          const res = await fetch('/api/settings');
+          if (res.ok) {
+            const data = await res.json();
+            const hasEmail = !!(data.email && data.password);
+            setStatus(
+              id,
+              hasEmail ? 'pass' : 'warn',
+              hasEmail ? '✅ Settings API OK, email configured' : '⚠️ Settings API OK but email not configured',
+            );
+          } else {
+            setStatus(id, 'warn', `⚠️ Settings API returned ${res.status}`);
+          }
+        } catch (e) {
+          setStatus(id, 'fail', `❌ Failed: ${e.message}`);
+        }
+      }
+
+      // ── Test 7: Forecast watcher logic (simulated) ──
+      function testForecastWatcher() {
+        const id = 'forecast-watcher';
+        const mockScores = [
+          { date: '2026-06-08', score: 88, rating: 'Excellent', ratingColor: '#22c55e' },
+          { date: '2026-06-09', score: 45, rating: 'Poor', ratingColor: '#ef4444' },
+          { date: '2026-06-10', score: 92, rating: 'Excellent', ratingColor: '#22c55e' },
+        ];
+        const goodNights = mockScores.filter(s => s.score >= 75);
+        if (goodNights.length >= 2) {
+          setStatus(id, 'pass', `✅ Watcher would fire — found ${goodNights.length} good nights (threshold: ≥75, ≥2)`);
+        } else if (goodNights.length === 1) {
+          setStatus(id, 'warn', `⚠️ Only ${goodNights.length} good night — watcher needs ≥2 to fire`);
+        } else {
+          setStatus(id, 'pass', `ℹ️ No good nights in mock data — watcher correctly silent`);
+        }
+      }
+
+      // ── Test 8: Favorites watcher logic (simulated) ──
+      function testFavoritesWatcher() {
+        const id = 'favs-watcher';
+        const mockFavs = [
+          { name: 'Mauna Kea', bestScore: 95, bestRating: 'Excellent' },
+          { name: 'Atacama', bestScore: 60, bestRating: 'Fair' },
+        ];
+        const great = mockFavs.filter(f => f.bestScore >= 80);
+        if (great.length > 0) {
+          setStatus(id, 'pass', `✅ Favorites watcher would notify for: ${great.map(f => f.name).join(', ')} (≥80)`);
+        } else {
+          setStatus(id, 'pass', 'ℹ️ No favorites ≥80 — watcher correctly silent');
+        }
+      }
+
+      // ── Test 9: Android WebView Notification support ──
+      function testAndroidWebView() {
+        const id = 'android-webview';
+        if (!isAndroid) {
+          setStatus(id, 'info', 'ℹ️ Not on Android — skipped');
+          return;
+        }
+        // Android WebView from Chrome 86+ supports Notification API
+        const ua = navigator.userAgent;
+        const chromeMatch = ua.match(/Chrome\/(\d+)/);
+        const chromeVer = chromeMatch ? parseInt(chromeMatch[1]) : 0;
+        if (chromeVer >= 86) {
+          setStatus(id, 'pass', `✅ Chrome ${chromeVer} WebView — Notification API supported`);
+        } else if (chromeVer > 0) {
+          setStatus(id, 'warn', `⚠️ Chrome ${chromeVer} — Notification API needs ≥86`);
+        } else {
+          setStatus(id, 'warn', '⚠️ Unknown WebView version — may not support notifications');
+        }
+      }
+
+      // ── Test 10: Capacitor plugin availability ──
+      function testCapacitorPlugins() {
+        const id = 'capacitor-plugins';
+        if (!isCapacitor && !isAndroid) {
+          setStatus(id, 'info', 'ℹ️ Not in Capacitor — skipped');
+          return;
+        }
+        try {
+          const plugins = window.Capacitor && window.Capacitor.Plugins ? Object.keys(window.Capacitor.Plugins) : [];
+          if (plugins.length > 0) {
+            setStatus(id, 'pass', `✅ ${plugins.length} Capacitor plugins: ${plugins.join(', ')}`);
+          } else {
+            setStatus(id, 'warn', '⚠️ No Capacitor plugins detected — app uses web-only notifications');
+          }
+        } catch (e) {
+          setStatus(id, 'warn', `⚠️ Capacitor plugin check failed: ${e.message}`);
+        }
+      }
+
+      // ── Build UI & wire ──
+      const testDefs = [
+        {
+          id: 'browser-api',
+          name: 'Browser Notification API',
+          desc: 'Check if Notification API is available and permitted',
+          fn: testBrowserNotification,
+          icon: '🔍',
+        },
+        {
+          id: 'browser-send',
+          name: 'Send Test Browser Notification',
+          desc: 'Actually fire a browser notification popup',
+          fn: testSendBrowserNotification,
+          icon: '📬',
+        },
+        {
+          id: 'sw-reg',
+          name: 'Service Worker Registration',
+          desc: 'Verify /sw.js is registered and active',
+          fn: testServiceWorker,
+          icon: '⚙️',
+        },
+        {
+          id: 'sw-click',
+          name: 'Service Worker Message Handler',
+          desc: 'Send a PING to the SW to verify notification click routing',
+          fn: testSWNotificationClick,
+          icon: '📩',
+        },
+        {
+          id: 'backend-email',
+          name: 'Backend Email Notification',
+          desc: 'POST /api/test-notification — sends real email via Gmail SMTP',
+          fn: testBackendEmail,
+          icon: '📧',
+        },
+        {
+          id: 'settings-api',
+          name: 'Settings API (Email Config)',
+          desc: 'Check if email credentials are configured in settings',
+          fn: testSettingsAPI,
+          icon: '🔑',
+        },
+        {
+          id: 'forecast-watcher',
+          name: '7-Day Forecast Watcher Logic',
+          desc: 'Simulates the background watcher that fires when ≥2 good nights found',
+          fn: testForecastWatcher,
+          icon: '⭐',
+        },
+        {
+          id: 'favs-watcher',
+          name: 'Favorites Watcher Logic',
+          desc: 'Simulates the favorites checker that fires when favorite scores ≥80',
+          fn: testFavoritesWatcher,
+          icon: '🌟',
+        },
+        {
+          id: 'android-webview',
+          name: 'Android WebView Notification Support',
+          desc: 'Checks Chrome WebView version for Notification API compatibility (Android only)',
+          fn: testAndroidWebView,
+          icon: '📱',
+        },
+        {
+          id: 'capacitor-plugins',
+          name: 'Capacitor Plugin Availability',
+          desc: 'Lists installed Capacitor plugins (Android only)',
+          fn: testCapacitorPlugins,
+          icon: '🔌',
+        },
       ];
-      const goodNights = mockScores.filter(s => s.score >= 75);
-      if (goodNights.length >= 2) {
-        setStatus(id, 'pass', `✅ Watcher would fire — found ${goodNights.length} good nights (threshold: ≥75, ≥2)`);
-      } else if (goodNights.length === 1) {
-        setStatus(id, 'warn', `⚠️ Only ${goodNights.length} good night — watcher needs ≥2 to fire`);
-      } else {
-        setStatus(id, 'pass', `ℹ️ No good nights in mock data — watcher correctly silent`);
-      }
-    }
 
-    // ── Test 8: Favorites watcher logic (simulated) ──
-    function testFavoritesWatcher() {
-      const id = 'favs-watcher';
-      const mockFavs = [
-        { name: 'Mauna Kea', bestScore: 95, bestRating: 'Excellent' },
-        { name: 'Atacama', bestScore: 60, bestRating: 'Fair' },
-      ];
-      const great = mockFavs.filter(f => f.bestScore >= 80);
-      if (great.length > 0) {
-        setStatus(id, 'pass', `✅ Favorites watcher would notify for: ${great.map(f => f.name).join(', ')} (≥80)`);
-      } else {
-        setStatus(id, 'pass', 'ℹ️ No favorites ≥80 — watcher correctly silent');
-      }
-    }
-
-    // ── Test 9: Android WebView Notification support ──
-    function testAndroidWebView() {
-      const id = 'android-webview';
-      if (!isAndroid) {
-        setStatus(id, 'info', 'ℹ️ Not on Android — skipped');
-        return;
-      }
-      // Android WebView from Chrome 86+ supports Notification API
-      const ua = navigator.userAgent;
-      const chromeMatch = ua.match(/Chrome\/(\d+)/);
-      const chromeVer = chromeMatch ? parseInt(chromeMatch[1]) : 0;
-      if (chromeVer >= 86) {
-        setStatus(id, 'pass', `✅ Chrome ${chromeVer} WebView — Notification API supported`);
-      } else if (chromeVer > 0) {
-        setStatus(id, 'warn', `⚠️ Chrome ${chromeVer} — Notification API needs ≥86`);
-      } else {
-        setStatus(id, 'warn', '⚠️ Unknown WebView version — may not support notifications');
-      }
-    }
-
-    // ── Test 10: Capacitor plugin availability ──
-    function testCapacitorPlugins() {
-      const id = 'capacitor-plugins';
-      if (!isCapacitor && !isAndroid) {
-        setStatus(id, 'info', 'ℹ️ Not in Capacitor — skipped');
-        return;
-      }
-      try {
-        const plugins = (window.Capacitor && window.Capacitor.Plugins) ? Object.keys(window.Capacitor.Plugins) : [];
-        if (plugins.length > 0) {
-          setStatus(id, 'pass', `✅ ${plugins.length} Capacitor plugins: ${plugins.join(', ')}`);
-        } else {
-          setStatus(id, 'warn', '⚠️ No Capacitor plugins detected — app uses web-only notifications');
-        }
-      } catch (e) {
-        setStatus(id, 'warn', `⚠️ Capacitor plugin check failed: ${e.message}`);
-      }
-    }
-
-    // ── Build UI & wire ──
-    const testDefs = [
-      { id: 'browser-api', name: 'Browser Notification API', desc: 'Check if Notification API is available and permitted', fn: testBrowserNotification, icon: '🔍' },
-      { id: 'browser-send', name: 'Send Test Browser Notification', desc: 'Actually fire a browser notification popup', fn: testSendBrowserNotification, icon: '📬' },
-      { id: 'sw-reg', name: 'Service Worker Registration', desc: 'Verify /sw.js is registered and active', fn: testServiceWorker, icon: '⚙️' },
-      { id: 'sw-click', name: 'Service Worker Message Handler', desc: 'Send a PING to the SW to verify notification click routing', fn: testSWNotificationClick, icon: '📩' },
-      { id: 'backend-email', name: 'Backend Email Notification', desc: 'POST /api/test-notification — sends real email via Gmail SMTP', fn: testBackendEmail, icon: '📧' },
-      { id: 'settings-api', name: 'Settings API (Email Config)', desc: 'Check if email credentials are configured in settings', fn: testSettingsAPI, icon: '🔑' },
-      { id: 'forecast-watcher', name: '7-Day Forecast Watcher Logic', desc: 'Simulates the background watcher that fires when ≥2 good nights found', fn: testForecastWatcher, icon: '⭐' },
-      { id: 'favs-watcher', name: 'Favorites Watcher Logic', desc: 'Simulates the favorites checker that fires when favorite scores ≥80', fn: testFavoritesWatcher, icon: '🌟' },
-      { id: 'android-webview', name: 'Android WebView Notification Support', desc: 'Checks Chrome WebView version for Notification API compatibility (Android only)', fn: testAndroidWebView, icon: '📱' },
-      { id: 'capacitor-plugins', name: 'Capacitor Plugin Availability', desc: 'Lists installed Capacitor plugins (Android only)', fn: testCapacitorPlugins, icon: '🔌' },
-    ];
-
-    const grid = document.getElementById('test-grid');
-    testDefs.forEach(t => {
-      const card = document.createElement('div');
-      card.className = 'test-card';
-      card.dataset.id = t.id;
-      card.innerHTML = `
+      const grid = document.getElementById('test-grid');
+      testDefs.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'test-card';
+        card.dataset.id = t.id;
+        card.innerHTML = `
         <div class="test-icon">${t.icon}</div>
         <div class="test-info">
           <div class="test-name">${t.name}</div>
@@ -381,64 +528,67 @@
         </div>
         <button class="test-btn" data-test="${t.id}">Run</button>
       `;
-      grid.appendChild(card);
+        grid.appendChild(card);
 
-      const btn = card.querySelector('.test-btn');
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        try {
-          if (typeof t.fn !== 'function') {
-            setStatus(t.id, 'fail', `❌ Test function not defined: ${t.id}`);
-          } else {
-            await t.fn();
+        const btn = card.querySelector('.test-btn');
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            if (typeof t.fn !== 'function') {
+              setStatus(t.id, 'fail', `❌ Test function not defined: ${t.id}`);
+            } else {
+              await t.fn();
+            }
+          } catch (e) {
+            setStatus(t.id, 'fail', `❌ Exception: ${e.message}`);
+            console.error(`Test ${t.id} failed:`, e);
           }
-        } catch (e) {
-          setStatus(t.id, 'fail', `❌ Exception: ${e.message}`);
-          console.error(`Test ${t.id} failed:`, e);
-        }
-        btn.disabled = false;
-        updateSummary();
+          btn.disabled = false;
+          updateSummary();
+        });
       });
-    });
 
-    function updateSummary() {
-      const cards = document.querySelectorAll('.test-card');
-      let pass = 0, fail = 0, warn = 0, pending = 0;
-      cards.forEach(c => {
-        const cls = c.className;
-        if (cls.includes('pass')) pass++;
-        else if (cls.includes('fail')) fail++;
-        else if (cls.includes('warn')) warn++;
-        else pending++;
-      });
-      const total = pass + fail + warn;
-      document.getElementById('summary-content').innerHTML = `
+      function updateSummary() {
+        const cards = document.querySelectorAll('.test-card');
+        let pass = 0,
+          fail = 0,
+          warn = 0,
+          pending = 0;
+        cards.forEach(c => {
+          const cls = c.className;
+          if (cls.includes('pass')) pass++;
+          else if (cls.includes('fail')) fail++;
+          else if (cls.includes('warn')) warn++;
+          else pending++;
+        });
+        const total = pass + fail + warn;
+        document.getElementById('summary-content').innerHTML = `
         <div class="summary-row"><span>✅ Passed</span><span style="color:var(--pass)">${pass}</span></div>
         <div class="summary-row"><span>⚠️ Warnings</span><span style="color:var(--warn)">${warn}</span></div>
         <div class="summary-row"><span>❌ Failed</span><span style="color:var(--fail)">${fail}</span></div>
         <div class="summary-row"><span>⏳ Pending</span><span style="color:var(--muted)">${pending}</span></div>
         ${total > 0 ? `<div class="summary-row" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;"><strong>Total run</strong><span><strong>${total}</strong></span></div>` : ''}
       `;
-    }
-
-    document.getElementById('run-all').addEventListener('click', async () => {
-      const buttons = document.querySelectorAll('.test-btn');
-      buttons.forEach(b => b.disabled = true);
-      for (const t of testDefs) {
-        try {
-          if (typeof t.fn !== 'function') {
-            setStatus(t.id, 'fail', `❌ Test function missing: ${t.id}`);
-          } else {
-            await t.fn();
-          }
-        } catch (e) {
-          setStatus(t.id, 'fail', `❌ Exception: ${e.message}`);
-          console.error(`Test ${t.id} failed:`, e);
-        }
-        updateSummary();
       }
-      buttons.forEach(b => b.disabled = false);
-    });
-  </script>
-</body>
+
+      document.getElementById('run-all').addEventListener('click', async () => {
+        const buttons = document.querySelectorAll('.test-btn');
+        buttons.forEach(b => (b.disabled = true));
+        for (const t of testDefs) {
+          try {
+            if (typeof t.fn !== 'function') {
+              setStatus(t.id, 'fail', `❌ Test function missing: ${t.id}`);
+            } else {
+              await t.fn();
+            }
+          } catch (e) {
+            setStatus(t.id, 'fail', `❌ Exception: ${e.message}`);
+            console.error(`Test ${t.id} failed:`, e);
+          }
+          updateSummary();
+        }
+        buttons.forEach(b => (b.disabled = false));
+      });
+    </script>
+  </body>
 </html>

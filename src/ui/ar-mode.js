@@ -1,7 +1,18 @@
 /**
- * ARMode - Canvas-based AR using Stellarium Web Engine directly.
- * Heading -> engine observer.yaw, no iframes, no reloads, instant updates.
+ * ARMode — Canvas-based AR using Stellarium Web Engine directly.
+ * Lean orchestrator delegating domain tasks to modular sub-controllers.
  */
+
+import { estimateBortleFromCamera, resetCameraBortle } from '../core/sky-sense.js';
+import { loadScript, initEngine, setObserver } from '../core/stellarium-engine.js';
+import { emit } from '../core/events.js';
+import { orientationAdapter } from '../core/sensors/DeviceOrientationAdapter.js';
+import { cameraManager } from '../core/camera/CameraManager.js';
+import { arBortleBadge } from './ar/ARBortleBadge.js';
+import { arLensController } from './ar/ARLensController.js';
+import { arTimeTransport } from './ar/ARTimeTransport.js';
+import { arSkyMaskController } from './ar/ARSkyMaskController.js';
+import { arCameraSettings } from './ar/ARCameraSettings.js';
 
 let arActive = false;
 let videoEl = null;
@@ -10,307 +21,197 @@ let stel = null;
 let canvasEl = null;
 let smoothHeading = 0;
 let smoothAltitude = 45;
-const LP = 0.10;
 let animFrame = null;
-let sensor = null;
-let sensorReady = false;
 let engineReady = false;
-let initLat = 0, initLon = 0;
-let skyOpacity = 0.92;
-let timeOffsetHours = 0;
-let engineScriptLoaded = false;
+let cameraBortle = null;
+let bortleFrameCounter = 0;
 
-function loadEngineScript() {
-  if (engineScriptLoaded) return Promise.resolve();
-  if (typeof StelWebEngine !== 'undefined') { engineScriptLoaded = true; return Promise.resolve(); }
-  return new Promise(function(resolve, reject) {
-    var s = document.createElement('script');
-    s.src = 'lib/stellarium-web-engine.js?v=2';
-    s.onload = function() { engineScriptLoaded = true; resolve(); };
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
+export function isARActive() {
+  return arActive;
 }
 
-export function isARActive() { return arActive; }
-
-export function preloadStellarium(lat, lon) {
-  // Just store location - engine will be initialized on the AR canvas when opened
-  initLat = lat; initLon = lon;
+export function preloadStellarium(_lat, _lon) {
+  // Store preload lat/lon if needed before open
 }
 
-function quatToHdg(q) {
-  var x = q[0], y = q[1], z = q[2], w = q[3];
-  // Raw +Y heading from quaternion (sensor frame)
-  return ((Math.atan2(2*(x*y + w*z), 1 - 2*(y*y + z*z)) * 180/Math.PI) + 360) % 360;
-}
-
-function quatToAlt(q) {
-  var x = q[0], y = q[1], z = q[2], w = q[3];
-  // Elevation of +Z. Up=positive, engine wants up=negative.
-  return Math.asin(Math.max(-1, Math.min(1, 1 - 2*(x*x + y*y)))) * 180 / Math.PI;
-}
-
-function angleDelta(a, b) {
-  var d = ((a % 360) + 360) % 360 - ((b % 360) + 360) % 360;
-  if (d > 180) d -= 360;
-  if (d < -180) d += 360;
-  return d;
-}
-
-async function startSensor() {
-  if (typeof AbsoluteOrientationSensor !== 'undefined') {
-    try {
-      sensor = new AbsoluteOrientationSensor({ frequency: 60 });
-      sensor.addEventListener('reading', function() {
-        var q = sensor.quaternion;
-        if (q) { sensorReady = true; smoothHeading += LP * angleDelta(quatToHdg(q), smoothHeading); smoothAltitude += LP * (quatToAlt(q) - smoothAltitude); }
-      });
-      sensor.addEventListener('error', function() { sensorReady = false; sensor = null; });
-      sensor.start();
-      return;
-    } catch (e) { sensor = null; }
-  }
-  window.addEventListener('deviceorientationabsolute', handleEvent, true);
-  window.addEventListener('deviceorientation', handleEvent, true);
-}
-
-function handleEvent(event) {
-  if (sensorReady) return;
-  var isAbs = event.type === 'deviceorientationabsolute';
-  // Detect orientation: screen.orientation API or window.orientation fallback
-  var isLandscape = false;
-  try {
-    if (screen.orientation && screen.orientation.type) {
-      isLandscape = String(screen.orientation.type).startsWith('landscape');
-    } else if (typeof window.orientation !== 'undefined') {
-      isLandscape = Math.abs(window.orientation || 0) === 90;
-    }
-  } catch(e) { isLandscape = false; }
-  var raw;
-  if (event.webkitCompassHeading !== undefined) raw = event.webkitCompassHeading;
-  else if (isAbs && event.alpha != null) raw = event.alpha;
-  else if (!isAbs && event.alpha != null) {
-    raw = event.alpha;
-    var sa = 0;
-    try { sa = (screen.orientation && screen.orientation.angle != null) ? screen.orientation.angle : (window.orientation || 0); } catch(e) {}
-    raw = (raw - sa + 360) % 360;
-  } else return;
-  if (raw == null || isNaN(raw)) raw = 0;
-  smoothHeading += LP * angleDelta(raw, smoothHeading);
-  // Pitch from deviceorientation: use alpha on Android
-  var pitchAngle = event.alpha || 0;
-  var rawAlt = Math.max(-90, Math.min(90, pitchAngle));
-  smoothAltitude += LP * (rawAlt - smoothAltitude);
-}
-
-function stopSensor() {
-  if (sensor) { sensor.stop(); sensor = null; }
-  sensorReady = false;
-  window.removeEventListener('deviceorientationabsolute', handleEvent, true);
-  window.removeEventListener('deviceorientation', handleEvent, true);
-}
-
-export async function startARMode(latitude, longitude, onStop) {
+export async function startARMode(latitude, longitude, onStop, _motionAlreadyGranted) {
   if (arActive) return;
-  var overlay = document.getElementById('ar-overlay');
-  var video = document.getElementById('ar-video');
+
+  const overlay = document.getElementById('ar-overlay');
+  const video = document.getElementById('ar-video');
   canvasEl = document.getElementById('ar-sky');
   if (!overlay || !video || !canvasEl) return;
+
+  videoEl = video;
+  overlayEl = overlay;
+
   try {
-    var stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    });
-    video.srcObject = stream;
-    video.style.filter = 'brightness(0.55)';
-    await video.play();
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      if ((await DeviceOrientationEvent.requestPermission()) !== 'granted')
-        throw new Error('Motion permission denied');
-    }
+    await cameraManager.startCamera(video);
+
     overlay.classList.remove('hidden');
     arActive = true;
-    videoEl = video;
-    overlayEl = overlay;
     overlayEl.dataset.lat = latitude;
     overlayEl.dataset.lon = longitude;
-    smoothHeading = 0;
-    smoothAltitude = 45;
 
-    // Load engine script dynamically (not loaded at page start)
-    await loadEngineScript();
+    // Load Stellarium script & init engine
 
-    // Init engine directly on AR canvas (like test-engine.html)
+    await loadScript();
+
     if (typeof StelWebEngine === 'undefined') {
-      console.log('[AR] StelWebEngine not loaded');
+      stopARMode();
+      if (onStop) onStop('Engine load failed');
       return;
     }
+
     if (!window._stelEngineInit) {
       window._stelEngineInit = true;
-      console.log('[AR] Initializing engine on AR canvas...');
-      StelWebEngine({
-        wasmFile: 'lib/stellarium-web-engine.wasm',
-        canvas: canvasEl,
-        onReady: function(engine) {
-          console.log('[AR] Engine READY');
+      canvasEl.getContext('webgl', {
+        preserveDrawingBuffer: true,
+        alpha: false,
+        premultipliedAlpha: true,
+        antialias: true,
+        stencil: true,
+      });
+
+      initEngine(
+        canvasEl,
+        engine => {
           stel = engine;
           engineReady = true;
-          var base = '/test-skydata/';
-          stel.core.stars.addDataSource({ url: base + 'stars' });
-          stel.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
-          stel.core.dsos.addDataSource({ url: base + 'dso' });
-          stel.core.milkyway.addDataSource({ url: base + 'surveys/milkyway' });
-          stel.core.planets.addDataSource({ url: base + 'surveys/sso/sun', key: 'sun' });
-          stel.core.planets.addDataSource({ url: base + 'surveys/sso/moon', key: 'moon' });
-          if (stel.core.landscapes) stel.core.landscapes.addDataSource({ url: base + 'landscapes/guereins', key: 'guereins' });
-          // Show constellation lines & art
-          if (stel.core.constellations) {
-            stel.core.constellations.lines_visible = true;
-            stel.core.constellations.labels_visible = true;
-          }
-          if (stel.core.atmosphere) stel.core.atmosphere.visible = false;
-          if (stel.core.landscapes) stel.core.landscapes.visible = true;
-          // Time: set to now (MJD)
-          if (stel.core.observer && typeof stel.date2MJD === 'function') {
-            stel.core.observer.utc = stel.date2MJD(new Date());
-          }
-          // Labels
-          if (stel.core.stars) stel.core.stars.hints_visible = true;
-          if (stel.core.planets) stel.core.planets.hints_visible = true;
-          stel.core.observer.latitude = latitude * Math.PI / 180;
-          stel.core.observer.longitude = longitude * Math.PI / 180;
-          stel.core.observer.pitch = 45 * Math.PI / 180;
-          stel.core.observer.yaw = 0;
-          console.log('[AR] Catalogs & observer set');
-          setupSliders();
-        }
-      });
-    } else if (engineReady && stel) {
-      // Already initialized from a previous AR session
-      stel.core.observer.latitude = latitude * Math.PI / 180;
-      stel.core.observer.longitude = longitude * Math.PI / 180;
-      stel.core.observer.pitch = 45 * Math.PI / 180;
-      stel.core.observer.yaw = 0;
-      if (typeof stel.date2MJD === 'function') stel.core.observer.utc = stel.date2MJD(new Date());
+
+          stel.core.observer.fov = (arLensController.arFov * Math.PI) / 180;
+          arLensController.setupARZoom(canvasEl, fov => {
+            if (stel && stel.core && stel.core.observer) {
+              stel.core.observer.fov = (fov * Math.PI) / 180;
+            }
+            arLensController.updateLensIndicator(videoEl, cameraManager.getLensInfo());
+            arSkyMaskController.updateSkyGroundMask(smoothAltitude, fov);
+          });
+
+          arLensController.updateLensIndicator(videoEl, cameraManager.getLensInfo());
+          setObserver(stel, { lat: latitude, lon: longitude, pitch: 45, yaw: 0 });
+
+          // Init UI Controllers
+          arSkyMaskController.init(canvasEl, stel);
+          arCameraSettings.init(videoEl);
+          arTimeTransport.init(stel, hoursOffset => {
+            if (stel && stel.core && stel.core.observer && typeof stel.date2MJD === 'function') {
+              stel.core.observer.utc = stel.date2MJD(new Date()) + hoursOffset / 24;
+            }
+          });
+        },
+        err => {
+          console.error('[AR] Engine timeout:', err);
+          stopARMode();
+          if (onStop) onStop('Engine timeout');
+        },
+      );
     }
-    startSensor();
-    setupSliders();
+
+    await orientationAdapter.start();
+
+    // Init AR Components
+    arBortleBadge.init(preset => applyBortlePreset(preset));
+
+    // Close & Capture button bindings
+    setupActionButtons();
+
     renderLoop();
   } catch (err) {
-    console.error('AR failed:', err);
+    console.error('[AR] Failed:', err);
     stopARMode();
     if (onStop) onStop(err.message);
   }
 }
 
+function setupActionButtons() {
+  const closeBtn = document.getElementById('ar-close-btn');
+  if (closeBtn) {
+    closeBtn.onclick = () => stopARMode();
+  }
+
+  const captureBtn = document.getElementById('ar-capture-btn');
+  if (captureBtn) {
+    captureBtn.onclick = () => arLensController.captureARPhoto(videoEl, canvasEl);
+  }
+
+  const calibrateBtn = document.getElementById('ar-calibrate-btn');
+  if (calibrateBtn) {
+    calibrateBtn.onclick = () => orientationAdapter.resetHeadingOffset();
+  }
+
+  const bortleBtn = document.getElementById('ar-bortle-btn');
+  if (bortleBtn) {
+    bortleBtn.onclick = () => {
+      const overlay = document.getElementById('ar-bortle-overlay');
+      if (overlay) overlay.classList.remove('hidden');
+    };
+  }
+
+  const bortleClose = document.getElementById('ar-bortle-close');
+  if (bortleClose) {
+    bortleClose.onclick = () => {
+      const overlay = document.getElementById('ar-bortle-overlay');
+      if (overlay) overlay.classList.add('hidden');
+    };
+  }
+}
+
 export function stopARMode() {
   arActive = false;
-  if (videoEl && videoEl.srcObject) { videoEl.srcObject.getTracks().forEach(function(t){t.stop()}); videoEl.srcObject = null; }
-  if (videoEl) videoEl.style.filter = '';
-  videoEl = null;
-  canvasEl = null;
+  cameraManager.stopCamera(videoEl);
+  orientationAdapter.stop();
+  arTimeTransport.stopAnim();
+
   if (overlayEl) overlayEl.classList.add('hidden');
-  overlayEl = null;
-  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
-  skyOpacity = 0.92;
-  timeOffsetHours = 0;
-  stopSensor();
+  if (animFrame) {
+    cancelAnimationFrame(animFrame);
+    animFrame = null;
+  }
+
+  resetCameraBortle();
+  window._stelEngineInit = false;
 }
 
-function setupSliders() {
-  var opSlider = document.getElementById('ar-opacity');
-  var opVal = document.getElementById('ar-opacity-val');
-  if (opSlider && opVal) {
-    opSlider.value = Math.round(skyOpacity * 100);
-    opVal.textContent = Math.round(skyOpacity * 100) + '%';
-    opSlider.addEventListener('input', function() {
-      skyOpacity = parseInt(this.value) / 100;
-      opVal.textContent = this.value + '%';
-      if (canvasEl) canvasEl.style.opacity = skyOpacity;
-    });
+function applyBortlePreset(preset) {
+  if (!engineReady || !stel || !stel.core) return;
+  const c = stel.core;
+  if (c.stars && typeof c.stars.magnitude_limit !== 'undefined') {
+    c.stars.magnitude_limit = preset.starMagLimit;
   }
-  var tmSlider = document.getElementById('ar-time');
-  var tmVal = document.getElementById('ar-time-val');
-  if (tmSlider && tmVal) {
-    tmSlider.value = timeOffsetHours;
-    tmVal.textContent = formatTimeOffset(timeOffsetHours);
-    tmSlider.addEventListener('input', function() {
-      timeOffsetHours = parseInt(this.value);
-      tmVal.textContent = formatTimeOffset(timeOffsetHours);
-    });
-  }
-
-  // Toggle buttons — match engine state
-  setupToggle('ar-btn-atmo', 'atmosphere', false);
-  setupToggle('ar-btn-ground', 'landscapes', true);
-  setupToggle('ar-btn-grid', 'lines', {sub: 'equatorial', def: false});
-
-  function setupToggle(id, prop, opts) {
-    var btn = document.getElementById(id);
-    if (!btn) return;
-    var defOn = (typeof opts === 'boolean') ? opts : (opts && opts.def);
-    if (defOn) btn.classList.add('active');
-    btn.addEventListener('click', function() {
-      btn.classList.toggle('active');
-      var on = btn.classList.contains('active');
-      console.log('[AR] Toggle ' + id + ' → ' + on);
-      if (engineReady && stel && stel.core) {
-        var obj = stel.core[prop];
-        console.log('[AR] stel.core.' + prop + ' =', obj ? 'found' : 'MISSING');
-        if (obj) {
-          if (opts && opts.sub) {
-            console.log('[AR] Trying sub.' + opts.sub, obj[opts.sub] ? 'found' : 'MISSING');
-            if (obj[opts.sub]) {
-              obj[opts.sub].visible = on;
-            } else if (prop === 'lines' && obj.azimuthal) {
-              obj.azimuthal.visible = on;
-            } else if (prop === 'lines' && obj.gridlines) {
-              obj.gridlines.visible = on;
-            } else if (prop === 'lines') {
-              // If no sub-objects exist, set visible on the lines object itself
-              obj.visible = on;
-              console.log('[AR] Set lines.visible directly');
-            }
-          } else {
-            obj.visible = on;
-          }
-        }
-      }
-    });
-  }
-
-}
-
-function formatTimeOffset(hours) {
-  if (hours === 0) return 'now';
-  var sign = hours > 0 ? '+' : '';
-  var d = Math.floor(Math.abs(hours) / 24);
-  var h = Math.abs(hours) % 24;
-  if (d > 0 && h === 0) return sign + d + 'd';
-  if (d > 0) return sign + d + 'd' + h + 'h';
-  return sign + h + 'h';
 }
 
 function renderLoop() {
   if (!arActive) return;
-  var h = ((smoothHeading % 360) + 360) % 360;
+
+  smoothHeading = orientationAdapter.getHeading();
+  smoothAltitude = orientationAdapter.getAltitude();
+  const h = ((smoothHeading % 360) + 360) % 360;
+
   if (engineReady && stel && stel.core && stel.core.observer) {
-    stel.core.observer.yaw = (-h) * Math.PI / 180;
-    stel.core.observer.pitch = -smoothAltitude * Math.PI / 180;
-    if (typeof stel.date2MJD === 'function') {
-      stel.core.observer.utc = stel.date2MJD(new Date()) + timeOffsetHours / 24;
+    stel.core.observer.yaw = (-h * Math.PI) / 180;
+    stel.core.observer.pitch = (-smoothAltitude * Math.PI) / 180;
+  }
+
+  // Compass ring update
+  const ring = overlayEl && overlayEl.querySelector('.ar-compass-face');
+  if (ring) ring.style.transform = `rotate(${h}deg)`;
+
+  const lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
+  const lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
+  if (!isNaN(lat) && !isNaN(lon)) {
+    emit('bearing:update', { heading: h, lat, lon });
+  }
+
+  // Camera Bortle estimation (~2fps)
+  bortleFrameCounter++;
+  if (bortleFrameCounter >= 30 && videoEl) {
+    bortleFrameCounter = 0;
+    cameraBortle = estimateBortleFromCamera(videoEl, smoothAltitude);
+    if (cameraBortle && cameraBortle.bortle >= 1) {
+      arBortleBadge.updateBortle(cameraBortle);
     }
   }
-  if (canvasEl) canvasEl.style.opacity = skyOpacity;
-  var ring = overlayEl && overlayEl.querySelector('.ar-compass-face');
-  if (ring) ring.style.transform = 'rotate(' + h + 'deg)';
-  var lat = overlayEl ? parseFloat(overlayEl.dataset.lat) : NaN;
-  var lon = overlayEl ? parseFloat(overlayEl.dataset.lon) : NaN;
-  if (!isNaN(lat) && !isNaN(lon) && typeof window._arBearingCallback === 'function') window._arBearingCallback(h, lat, lon);
-  var dbg = document.getElementById('ar-debug');
-  var engLat = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.latitude * 180 / Math.PI : NaN;
-  var engLon = (engineReady && stel && stel.core && stel.core.observer) ? stel.core.observer.longitude * 180 / Math.PI : NaN;
-  if (dbg) dbg.textContent = (sensorReady?'SENSOR':'EVENT') + ' | hdg:' + h.toFixed(1) + '\xB0 alt:' + smoothAltitude.toFixed(1) + '\xB0 | loc:' + (isNaN(engLat)?'--':engLat.toFixed(2)+','+engLon.toFixed(2)) + ' | ' + formatTimeOffset(timeOffsetHours);
+
   animFrame = requestAnimationFrame(renderLoop);
 }

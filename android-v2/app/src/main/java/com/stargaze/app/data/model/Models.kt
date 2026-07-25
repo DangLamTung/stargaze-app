@@ -25,6 +25,72 @@ data class WeatherResponse(
 )
 
 @Serializable
+data class OpenMeteoResponse(
+    @SerialName("current_units") val currentUnits: CurrentUnits? = null,
+    @SerialName("hourly_units") val hourlyUnits: HourlyUnits? = null,
+    @SerialName("daily_units") val dailyUnits: DailyUnits? = null,
+    val current: OpenMeteoCurrent? = null,
+    val hourly: OpenMeteoHourly? = null,
+    val daily: OpenMeteoDaily? = null
+)
+
+@Serializable
+data class CurrentUnits(val time: String)
+
+@Serializable
+data class HourlyUnits(val time: String)
+
+@Serializable
+data class DailyUnits(val time: String)
+
+@Serializable
+data class OpenMeteoCurrent(
+    val time: String,
+    @SerialName("temperature_2m") val temperature: Double? = null,
+    @SerialName("relative_humidity_2m") val humidity: Double? = null,
+    @SerialName("apparent_temperature") val apparentTemperature: Double? = null,
+    @SerialName("cloud_cover") val cloudCover: Double? = null,
+    val visibility: Double? = null,
+    @SerialName("wind_speed_10m") val windSpeed: Double? = null,
+    @SerialName("wind_direction_10m") val windDirection: Double? = null,
+    val precipitation: Double? = null,
+    @SerialName("weather_code") val weatherCode: Int? = null,
+    @SerialName("is_day") val isDay: Int? = null
+)
+
+@Serializable
+data class OpenMeteoHourly(
+    val time: List<String>,
+    @SerialName("temperature_2m") val temperature: List<Double?> = emptyList(),
+    @SerialName("relative_humidity_2m") val humidity: List<Double?> = emptyList(),
+    @SerialName("cloud_cover") val cloudCover: List<Double?> = emptyList(),
+    @SerialName("cloud_cover_low") val cloudCoverLow: List<Double?> = emptyList(),
+    @SerialName("cloud_cover_mid") val cloudCoverMid: List<Double?> = emptyList(),
+    @SerialName("cloud_cover_high") val cloudCoverHigh: List<Double?> = emptyList(),
+    val visibility: List<Double?> = emptyList(),
+    @SerialName("wind_speed_10m") val windSpeed: List<Double?> = emptyList(),
+    @SerialName("wind_direction_10m") val windDirection: List<Double?> = emptyList(),
+    @SerialName("precipitation_probability") val precipitationProbability: List<Double?> = emptyList(),
+    val precipitation: List<Double?> = emptyList(),
+    @SerialName("weather_code") val weatherCode: List<Int?> = emptyList(),
+    @SerialName("is_day") val isDay: List<Int?> = emptyList()
+)
+
+@Serializable
+data class OpenMeteoDaily(
+    val time: List<String>,
+    @SerialName("weather_code") val weatherCode: List<Int?> = emptyList(),
+    @SerialName("temperature_2m_max") val tempMax: List<Double?> = emptyList(),
+    @SerialName("temperature_2m_min") val tempMin: List<Double?> = emptyList(),
+    val sunrise: List<String?> = emptyList(),
+    val sunset: List<String?> = emptyList(),
+    @SerialName("uv_index_max") val uvIndexMax: List<Double?> = emptyList(),
+    @SerialName("precipitation_sum") val precipitationSum: List<Double?> = emptyList(),
+    @SerialName("precipitation_probability_max") val precipitationProbabilityMax: List<Double?> = emptyList(),
+    @SerialName("wind_speed_10m_max") val windSpeedMax: List<Double?> = emptyList()
+)
+
+@Serializable
 data class CurrentWeather(
     val temperature: Double? = null,
     val cloudCover: Double? = null,

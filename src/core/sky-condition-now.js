@@ -9,6 +9,7 @@
  */
 
 import { calculateHourlyScore, getScoreRating, getScoreColor } from './stargazing-score.js';
+import { buildSkyQualityReport } from './sky-quality.js';
 
 // ─── Exponential smoothing (recency-weighted average) ───
 // Gives more weight to recent observations — "soft" pattern matching
@@ -95,15 +96,12 @@ export function analyzeCloudTrend(hourlyData, lookbackHours = 6) {
 
   // Predict next 3 hours using exponential smoothing + linear trend
   const nowH = now / 3600000;
-  // Exponential smoothing: blend recent weighted average with linear projection
   const recentWeighted = expSmoothPredict(pastPoints.map(p => p.y));
   const predicted = [1, 2, 3].map(h => {
     const linPred = Math.max(0, Math.min(100, slope * (nowH + h) + intercept));
     const expPred = recentWeighted;
-    // Blend: 70% exponential smoothing + 30% linear trend for near-term
-    const blend = h === 1 ? expPred * 0.7 + linPred * 0.3
-      : h === 2 ? expPred * 0.5 + linPred * 0.5
-      : expPred * 0.3 + linPred * 0.7;
+    const blend =
+      h === 1 ? expPred * 0.7 + linPred * 0.3 : h === 2 ? expPred * 0.5 + linPred * 0.5 : expPred * 0.3 + linPred * 0.7;
     return { hoursAhead: h, cloudCover: Math.round(blend) };
   });
 
@@ -111,7 +109,7 @@ export function analyzeCloudTrend(hourlyData, lookbackHours = 6) {
 }
 
 // ─── Now Score ───
-export function getNowScore(weatherData, bortleClass = 5) {
+export function getNowScore(weatherData, bortleClass = 7) {
   if (!weatherData?.hourly?.length) return null;
 
   const now = Date.now();
@@ -135,6 +133,7 @@ export function getNowScore(weatherData, bortleClass = 5) {
     if (cur.humidity != null) hourData.humidity = cur.humidity;
     if (cur.visibility != null) hourData.visibility = cur.visibility;
     if (cur.windSpeed != null) hourData.windSpeed = cur.windSpeed;
+    if (cur.cloudBaseFt != null) hourData.cloudBaseFt = cur.cloudBaseFt;
   }
 
   // Derive moon phase from today's daily entry
@@ -145,11 +144,65 @@ export function getNowScore(weatherData, bortleClass = 5) {
   const score = calculateHourlyScore(hourData, effectivePhase, bortleClass);
   const trend = analyzeCloudTrend(weatherData.hourly, 6);
 
+  // Augment predicted hours with actual data from nearest hourly slots and compute scores
+  if (trend.predicted && weatherData.hourly) {
+    var nowTs = Date.now();
+    var todayStr2 = new Date().toISOString().split('T')[0];
+    var todayDay2 = weatherData.daily?.find(d => d.date === todayStr2);
+    var moonPhaseForScore = todayDay2?.moonPhase ?? 0.5;
+    trend.predicted = trend.predicted.map(function (p) {
+      var targetTs = nowTs + p.hoursAhead * 3600000;
+      var nearest = null,
+        bestDiff = Infinity;
+      for (var h = 0; h < weatherData.hourly.length; h++) {
+        var d = Math.abs(weatherData.hourly[h].time.getTime() - targetTs);
+        if (d < bestDiff) {
+          bestDiff = d;
+          nearest = weatherData.hourly[h];
+        }
+      }
+      var result = { hoursAhead: p.hoursAhead, cloudCover: p.cloudCover };
+      if (nearest && bestDiff < 90 * 60000) {
+        result.cloudCoverLow = nearest.cloudCoverLow;
+        result.cloudCoverMid = nearest.cloudCoverMid;
+        result.cloudCoverHigh = nearest.cloudCoverHigh;
+        result.humidity = nearest.humidity;
+        result.temperature = nearest.temperature;
+        result.precipProbability = nearest.precipProbability;
+        result.windSpeed = nearest.windSpeed;
+        result.visibility = nearest.visibility;
+        result.weatherCode = nearest.weatherCode;
+        result.isDay = nearest.isDay;
+        // Compute stargazing score for this slot
+        result.score = calculateHourlyScore(nearest, moonPhaseForScore, bortleClass);
+        result.rating = getScoreRating(result.score);
+      }
+      return result;
+    });
+  }
+
+  // Build advanced sky quality report
+  const skyQuality = buildSkyQualityReport({
+    pm25: hourData.pm25,
+    wind200hPa: hourData.wind200hPa,
+    wind850hPa: hourData.wind850hPa,
+    moonPhase: effectivePhase,
+    moonAltDeg: -90, // approximate — actual moon position requires more complex calc
+    dewPointC: hourData.dewPoint,
+    cloudCoverHigh: hourData.cloudCoverHigh,
+    cloudCoverTotal: hourData.cloudCover,
+    elevationM: weatherData.elevation || 0,
+  });
+
   return {
     score,
     rating: getScoreRating(score),
     ratingColor: getScoreColor(score),
     cloudCover: hourData.cloudCover ?? null,
+    cloudCoverLow: hourData.cloudCoverLow ?? null,
+    cloudCoverMid: hourData.cloudCoverMid ?? null,
+    cloudCoverHigh: hourData.cloudCoverHigh ?? null,
+    pm25: hourData.pm25 ?? null,
     humidity: hourData.humidity ?? null,
     visibility: hourData.visibility ?? null,
     windSpeed: hourData.windSpeed ?? null,
@@ -158,6 +211,8 @@ export function getNowScore(weatherData, bortleClass = 5) {
     isDaytime: hourData.isDaytime,
     time: bestHour.time,
     trend,
+    // Tier 2 advanced metrics
+    skyQuality,
   };
 }
 

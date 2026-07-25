@@ -74,26 +74,30 @@ export function initEngine(canvas, onReady, onError) {
 export function configureCatalogs(engine) {
   if (!engine?.core) return;
   const base = STELLARIUM_DATA_BASE;
-  for (const cat of STELLARIUM_CATALOGS) {
-    const target = engine.core[cat.type];
-    if (target?.addDataSource) {
-      target.addDataSource({ url: base + cat.url, ...(cat.key ? { key: cat.key } : {}) });
-    }
-  }
 
-  // ─── Rich sky settings — lots of stars, DSOs, constellations ───
+  // Match Android working version — add data sources directly
+  engine.core.stars.addDataSource({ url: base + 'stars' });
+  engine.core.skycultures.addDataSource({ url: base + 'skycultures/western', key: 'western' });
+  engine.core.dsos.addDataSource({ url: base + 'dso' });
+  engine.core.planets.addDataSource({ url: base + 'surveys/sso/sun', key: 'sun' });
+  engine.core.planets.addDataSource({ url: base + 'surveys/sso/moon', key: 'moon' });
+  engine.core.planets.addDataSource({ url: base + 'surveys/sso/mercury', key: 'mercury' });
+  engine.core.planets.addDataSource({ url: base + 'surveys/sso/venus', key: 'venus' });
+  engine.core.planets.addDataSource({ url: base + 'surveys/sso/mars', key: 'mars' });
+  engine.core.planets.addDataSource({ url: base + 'surveys/sso/jupiter', key: 'jupiter' });
+  engine.core.planets.addDataSource({ url: base + 'surveys/sso/saturn', key: 'saturn' });
+  if (engine.core.milkyway) engine.core.milkyway.addDataSource({ url: base + 'surveys/milkyway' });
+  if (engine.core.landscapes) engine.core.landscapes.addDataSource({ url: base + 'landscapes/guereins', key: 'guereins' });
+
+  // Visual settings
+  if (engine.core.constellations) {
+    engine.core.constellations.lines_visible = true;
+    engine.core.constellations.labels_visible = true;
+  }
   if (engine.core.stars) {
     engine.core.stars.limitingMagnitude = 8.5;
     engine.core.stars.hints_visible = true;
     engine.core.stars.labels_visible = true;
-  }
-  if (engine.core.constellations) {
-    engine.core.constellations.lines_visible = true;
-    engine.core.constellations.labels_visible = true;
-    engine.core.constellations.boundaries_visible = false;
-  }
-  if (engine.core.skycultures) {
-    engine.core.skycultures.current = 'western';
   }
   if (engine.core.dsos) {
     engine.core.dsos.hints_visible = true;
@@ -103,26 +107,12 @@ export function configureCatalogs(engine) {
     engine.core.planets.hints_visible = true;
     engine.core.planets.labels_visible = true;
   }
-  if (engine.core.milkyway) {
-    engine.core.milkyway.visible = true;
-  }
-  if (engine.core.atmosphere) {
-    engine.core.atmosphere.visible = false;
-  }
-  if (engine.core.landscapes) {
-    engine.core.landscapes.visible = true;
-  }
+  if (engine.core.atmosphere) engine.core.atmosphere.visible = false;
+  if (engine.core.landscapes) engine.core.landscapes.visible = true;
   if (engine.core.lines) {
     if (engine.core.lines.equatorial) engine.core.lines.equatorial.visible = false;
     if (engine.core.lines.azimuthal) engine.core.lines.azimuthal.visible = false;
     if (engine.core.lines.ecliptic) engine.core.lines.ecliptic.visible = true;
-  }
-}
-
-/** Switch sky culture (western, chinese, arabic, etc.) */
-export function setSkyCulture(engine, cultureKey) {
-  if (engine?.core?.skycultures) {
-    engine.core.skycultures.current = cultureKey;
   }
 }
 

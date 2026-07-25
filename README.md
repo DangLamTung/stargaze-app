@@ -29,7 +29,15 @@ Find the best nights for stargazing with real-time weather data, cloud coverage 
 - Sky darkness (Bortle) estimation from camera
 - Capture sky photos with lens overlay
 
-### 🌊 Tide & Sea
+| AR Sky View | AR Controls |
+|---|---|
+| ![AR Sky View](docs/ar-sky-view.svg) | ![AR Controls](docs/ar-controls.svg) |
+
+| Bortle Measurement | Camera Settings |
+|---|---|
+| ![Bortle](docs/ar-bortle.svg) | ![Camera](docs/ar-camera-settings.svg) |
+
+> 💡 *Replace the `.svg` placeholders with real `.png` screenshots from your phone. Open the app in AR mode, take screenshots, and overwrite the files in `docs/`.*### 🌊 Tide & Sea
 - Tide predictions from cau-ca.com (Vietnamese source)
 - Fallback to tide-forecast.com global model
 - Interactive 24h tide chart with drag-to-pan

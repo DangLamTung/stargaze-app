@@ -119,35 +119,39 @@ export function calculateHourlyScore(hourData, moonPhase, bortleClass = 5) {
     totalScore += (scores[key] || 50) * weight;
   }
 
-  // ─── Cloud layer penalties ───
+  // ─── Cloud layer penalties (realistic) ───
+  // Reference: Clear Outside, Astrospheric — 0-25% clear, 25-50% fair, 50-75% poor, 75%+ bad
   var lowCloud = hourData.cloudCoverLow ?? 0;
   var midCloud = hourData.cloudCoverMid ?? 0;
   var highCloud = hourData.cloudCoverHigh ?? 0;
 
-  // Low clouds (stratus) — worst kind, blocks everything
-  if (lowCloud > 60)      { totalScore = Math.min(totalScore, 3); }
-  else if (lowCloud > 40) { totalScore = Math.min(totalScore, 10); }
-  else if (lowCloud > 20) { totalScore = Math.min(totalScore, 20); }
+  // Low clouds (stratus) — opaque, blocks everything below them
+  if (lowCloud > 80)      { totalScore = Math.min(totalScore, 2); }
+  else if (lowCloud > 60) { totalScore = Math.min(totalScore, 8); }
+  else if (lowCloud > 40) { totalScore = Math.min(totalScore, 18); }
+  else if (lowCloud > 20) { totalScore = Math.min(totalScore, 30); }
 
-  // Mid clouds — bad but less than low
-  if (midCloud > 70)      { totalScore = Math.min(totalScore, 5); }
-  else if (midCloud > 50) { totalScore = Math.min(totalScore, 12); }
-  else if (midCloud > 30) { totalScore = Math.min(totalScore, 22); }
+  // Mid clouds — somewhat transparent at edges
+  if (midCloud > 85)      { totalScore = Math.min(totalScore, 4); }
+  else if (midCloud > 65) { totalScore = Math.min(totalScore, 12); }
+  else if (midCloud > 45) { totalScore = Math.min(totalScore, 24); }
+  else if (midCloud > 25) { totalScore = Math.min(totalScore, 35); }
 
-  // High clouds (cirrus) — thin, stars still visible
-  if (highCloud > 80)     { totalScore = Math.min(totalScore, 8); }
-  else if (highCloud > 60) { totalScore = Math.min(totalScore, 15); }
-  else if (highCloud > 40) { totalScore = Math.min(totalScore, 25); }
+  // High clouds (cirrus) — thin, stars shine through
+  if (highCloud > 90)     { totalScore = Math.min(totalScore, 8); }
+  else if (highCloud > 70) { totalScore = Math.min(totalScore, 18); }
+  else if (highCloud > 50) { totalScore = Math.min(totalScore, 30); }
 
-  // Total cloud fallback (when layer data unavailable)
-  if (cloudPct > 80)      { totalScore = Math.min(totalScore, 5); }
-  else if (cloudPct > 60) { totalScore = Math.min(totalScore, 12); }
-  else if (cloudPct > 40) { totalScore = Math.min(totalScore, 22); }
+  // Total cloud fallback (when layer data not available)
+  if (cloudPct > 85)      { totalScore = Math.min(totalScore, 3); }
+  else if (cloudPct > 65) { totalScore = Math.min(totalScore, 10); }
+  else if (cloudPct > 45) { totalScore = Math.min(totalScore, 22); }
+  else if (cloudPct > 25) { totalScore = Math.min(totalScore, 35); }
 
   // Rain + thick cloud = game over
   const precip = hourData.precipProbability ?? 0;
-  if (precip > 50 && cloudPct > 40) { totalScore = 1; }
-  else if (precip > 30 && cloudPct > 60) { totalScore = 1; }
+  if (precip > 60 && cloudPct > 50) { totalScore = 1; }
+  else if (precip > 40 && cloudPct > 70) { totalScore = 1; }
 
   // Clear skies should not be dragged down by model rain probability alone
   if (hourData.cloudCover != null && hourData.cloudCover <= 15) {

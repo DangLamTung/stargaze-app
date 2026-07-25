@@ -80,19 +80,51 @@ export function configureCatalogs(engine) {
       target.addDataSource({ url: base + cat.url, ...(cat.key ? { key: cat.key } : {}) });
     }
   }
-  // Default visual settings
+
+  // ─── Rich sky settings — lots of stars, DSOs, constellations ───
+  if (engine.core.stars) {
+    engine.core.stars.limitingMagnitude = 8.5;
+    engine.core.stars.hints_visible = true;
+    engine.core.stars.labels_visible = true;
+  }
   if (engine.core.constellations) {
     engine.core.constellations.lines_visible = true;
     engine.core.constellations.labels_visible = true;
+    engine.core.constellations.boundaries_visible = false;
+    engine.core.constellations.art_visible = true;       // constellation artwork
+    engine.core.constellations.artOpacity = 0.35;        // subtle artwork overlay
   }
-  if (engine.core.atmosphere) engine.core.atmosphere.visible = false;
-  if (engine.core.landscapes) engine.core.landscapes.visible = true;
-  if (engine.core.stars) engine.core.stars.hints_visible = true;
-  if (engine.core.planets) engine.core.planets.hints_visible = true;
+  if (engine.core.skycultures) {
+    // Default to western, user can switch
+    engine.core.skycultures.current = 'western';
+  }
+  if (engine.core.dsos) {
+    engine.core.dsos.hints_visible = true;
+    engine.core.dsos.labels_visible = true;
+  }
+  if (engine.core.planets) {
+    engine.core.planets.hints_visible = true;
+    engine.core.planets.labels_visible = true;
+  }
+  if (engine.core.milkyway) {
+    engine.core.milkyway.visible = true;
+  }
+  if (engine.core.atmosphere) {
+    engine.core.atmosphere.visible = false;
+  }
+  if (engine.core.landscapes) {
+    engine.core.landscapes.visible = true;
+  }
   if (engine.core.lines) {
     if (engine.core.lines.equatorial) engine.core.lines.equatorial.visible = false;
     if (engine.core.lines.azimuthal) engine.core.lines.azimuthal.visible = false;
     if (engine.core.lines.ecliptic) engine.core.lines.ecliptic.visible = true;
+  }
+
+/** Switch sky culture (western, chinese, arabic, etc.) */
+export function setSkyCulture(engine, cultureKey) {
+  if (engine?.core?.skycultures) {
+    engine.core.skycultures.current = cultureKey;
   }
 }
 

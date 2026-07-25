@@ -158,9 +158,9 @@ def favorites_background_task():
         try:
             if not email_addr or not email_pass:
                 continue
-            if not os.path.exists("favorites.json"):
+            if not os.path.exists("backend/data/favorites.json"):
                 continue
-            with open("favorites.json", "r") as f:
+            with open("backend/data/favorites.json", "r") as f:
                 favorites = json.load(f)
             if not favorites:
                 continue

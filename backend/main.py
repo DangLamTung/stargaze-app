@@ -91,7 +91,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             try:
                 data = json.loads(post_data.decode("utf-8"))
-                with open("favorites.json", "w") as f:
+                with open("backend/data/favorites.json", "w") as f:
                     json.dump(data, f)
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")

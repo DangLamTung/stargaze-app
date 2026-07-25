@@ -17,10 +17,10 @@ def load_cities():
     _cities_loaded = True
 
     # Try compressed first (Docker build output), fall back to raw text
-    if os.path.exists("cities5000.json.gz"):
+    if os.path.exists("backend/data/cities5000.json.gz"):
         print("Loading compressed cities5000.json.gz into memory...")
         try:
-            with gzip.open("cities5000.json.gz", "rt", encoding="utf-8") as f:
+            with gzip.open("backend/data/cities5000.json.gz", "rt", encoding="utf-8") as f:
                 geonames_cities = json.load(f)
             print(f"Loaded {len(geonames_cities)} cities (from gzip).")
             return

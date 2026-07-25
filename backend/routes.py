@@ -142,8 +142,8 @@ def _favorites_get(self):
     import os
     try:
         data = "[]"
-        if os.path.exists("favorites.json"):
-            with open("favorites.json", "r") as f:
+        if os.path.exists("backend/data/favorites.json"):
+            with open("backend/data/favorites.json", "r") as f:
                 data = f.read()
         self._json(200, json.loads(data) if isinstance(data, str) else data)
     except Exception:
@@ -156,7 +156,7 @@ def _favorites_post(self):
     post_data = self.rfile.read(content_length)
     try:
         data = _json.loads(post_data.decode("utf-8"))
-        with open("favorites.json", "w") as f:
+        with open("backend/data/favorites.json", "w") as f:
             _json.dump(data, f)
         self._json(200, {"success": True})
     except Exception:

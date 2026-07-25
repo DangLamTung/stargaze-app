@@ -1,7 +1,7 @@
 /**
  * Shared constants — single source of truth for magic values across the codebase.
  */
-export const STELLARIUM_DATA_BASE = '/test-skydata/';
+export const STELLARIUM_DATA_BASE = 'https://data.stellarium.org/';
 
 export const STELLARIUM_CATALOGS = [
   { type: 'stars', url: 'stars' },

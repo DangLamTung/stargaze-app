@@ -119,40 +119,15 @@ export function calculateHourlyScore(hourData, moonPhase, bortleClass = 5) {
     totalScore += (scores[key] || 50) * weight;
   }
 
-  // ─── DSO-aware cloud penalties ───
-  // Low clouds (stratus) are devastating — they block everything
-  var lowCloud = hourData.cloudCoverLow ?? 0;
-  if (lowCloud > 60)
-    totalScore *= 0.15; // mostly blocked — nearly hopeless
-  else if (lowCloud > 40)
-    totalScore *= 0.35; // significant low cloud
-  else if (lowCloud > 20) totalScore *= 0.65; // patchy low cloud
+  // Cloud is the #1 killer for stargazing. Heavy penalties.
+  if (cloudPct > 65) { totalScore = 1; }
+  else if (cloudPct > 50) { totalScore = Math.min(totalScore, 5); }
+  else if (cloudPct > 30) { totalScore = Math.min(totalScore, 15); }
 
-  // Mid clouds penalize but less than low
-  var midCloud = hourData.cloudCoverMid ?? 0;
-  if (midCloud > 70 && lowCloud < 30) totalScore *= 0.5;
-
-  // High cirrus: degrades contrast but doesn't block DSOs completely
-  // Only counts as cirrus-dominated if total cloud is moderate (< 65%)
-  var highCloud = hourData.cloudCoverHigh ?? 0;
-  var isCirrusDominated = highCloud > 50 && lowCloud < 20 && midCloud < 30 && cloudPct < 65;
-
-  if (isCirrusDominated) {
-    totalScore *= 0.78; // light penalty — stars still visible through cirrus
-  }
-
-  // Total cloud — hard cap: heavy clouds = can't see anything
-  if (!isCirrusDominated) {
-    if (cloudPct > 90) totalScore = Math.min(totalScore, 5);
-    else if (cloudPct > 80) totalScore = Math.min(totalScore, 15);
-    else if (cloudPct > 65) totalScore = Math.min(totalScore, 30);
-  }
-
-  // Rain + cloud = game over — but only if clouds are actually blocking (not just cirrus)
+  // Rain + any cloud = game over
   const precip = hourData.precipProbability ?? 0;
-  if (!isCirrusDominated) {
-    if (precip > 50 && cloudPct > 40) totalScore *= 0.2;
-    else if (precip > 30 && cloudPct > 55) totalScore *= 0.45;
+  if (precip > 30 && cloudPct > 30) {
+    totalScore = 1;
   }
 
   // Clear skies should not be dragged down by model rain probability alone

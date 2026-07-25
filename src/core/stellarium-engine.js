@@ -117,6 +117,7 @@ export function configureCatalogs(engine) {
     if (engine.core.lines.azimuthal) engine.core.lines.azimuthal.visible = false;
     if (engine.core.lines.ecliptic) engine.core.lines.ecliptic.visible = true;
   }
+}
 
 /** Switch sky culture (western, chinese, arabic, etc.) */
 export function setSkyCulture(engine, cultureKey) {

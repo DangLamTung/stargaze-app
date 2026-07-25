@@ -1,100 +1,64 @@
 # 🔭 StarGaze — Stargazing & Sightseeing Planner
 
-> Find the best nights for stargazing with real-time weather data, cloud coverage analysis, interactive WASM sky maps, light pollution layers, and WebGL Augmented Reality (AR) mode.
+Find the best nights for stargazing with real-time weather data, cloud coverage analysis, interactive sky maps, and nearby sightseeing spots.
 
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
-![Python](https://img.shields.io/badge/Python-3.10%2B-informational.svg)
-![JavaScript](https://img.shields.io/badge/JavaScript-ES6%2B-yellow.svg)
+**Live**: [stargaze-app.fly.dev](https://stargaze-app.fly.dev)
 
----
+## Features
 
-## ✨ Features
+### 🌌 Sky Condition Scoring
+- Real-time stargazing score (0-100) based on cloud cover, humidity, visibility, wind, moon phase, and light pollution (Bortle scale)
+- 7-night forecast with hourly breakdown
+- Multi-model weather consensus (ECMWF, GFS, ICON, GEM)
+- Cloud cover hard cap: >90% clouds = score near 0
 
-- **🌌 Interactive Sky Map & WebGL AR Mode**: Real-time planetarium rendering powered by Stellarium Web WASM engine with camera AR view, compass orientation tracking, and smooth opacity controls.
-- **☁️ Real-time Weather & Satellite Overlays**: Live global satellite imagery (Himawari-9 / GOES), NASA GIBS historical cloud layers, and RainViewer precipitation radar animation.
-- **🌌 Light Pollution Mapping**: Integrated Bortle scale overlays and VIIRS Radiance imagery for discovering dark sky locations.
-- **🌊 Tide & Astronomical Data**: Coastal tide curves, moon phase calculations, moonlight brightness indicators, and twilight timing.
-- **🗺️ Interactive Map & Location Search**: Instant place search with multi-provider geocoding (Google Maps, Open-Meteo, Nominatim), favorite location bookmarks, and curated dark-sky spots.
+### 🗺️ Interactive Map
+- OpenStreetMap / CartoDB / ESRI Satellite basemaps
+- Live satellite cloud overlay (Himawari/GOES)
+- RainViewer precipitation radar with animation
+- NASA GIBS historical cloud data
+- Light pollution overlay (VIIRS radiance + Bortle scale)
+- View angle/bearing indicator with FOV sector
 
----
+### 🔮 AR Sky View
+- Real-time augmented reality using device camera
+- Stellarium Web Engine (WASM) rendering stars, planets, constellations
+- Compass HUD with heading calibration
+- Time/date transport controls with daylight slider
+- Moon phase, rise/set markers
+- Sky darkness (Bortle) estimation from camera
+- Capture sky photos with lens overlay
 
-## 🛠️ Tech Stack
+### 🌊 Tide & Sea
+- Tide predictions from cau-ca.com (Vietnamese source)
+- Fallback to tide-forecast.com global model
+- Interactive 24h tide chart with drag-to-pan
+- Sea condition (mirror/calm/choppy/rough) based on wind + tide
 
-- **Backend**: Python (Threaded HTTP Server, REST API routing, caching, CORS headers)
-- **Frontend**: Vanilla JavaScript (ES modules), HTML5, CSS3 Glassmorphism
-- **Mapping & Rendering**: Leaflet.js, WebGL / WASM (Stellarium Web Engine)
-- **Deployment**: Docker, Fly.io
+### 🔔 Smart Notifications
+- Background weather checks for favorite locations
+- Configurable check interval (10s testing / 4h recommended)
+- Email + browser push notifications
+- Per-day cloud/rain/score breakdown
 
----
+### ⭐ Curated Dark Sky Spots
+- Pre-loaded Vietnamese stargazing locations with Bortle ratings
+- Nearby clear-skies finder with filters (max Bortle, cloud %, distance)
+- Batch weather scoring for best spot within radius
 
-## 🚀 Getting Started
+### 📊 Weather Charts
+- Interactive Chart.js charts with zoom/pan
+- Cloud cover, temperature, humidity, visibility
+- +/-12h scrollable time window
 
-### Prerequisites
+## Tech Stack
 
-- **Python**: `3.10` or higher
-- **Node.js**: `18.0` or higher (for linting & formatting tooling)
+- **Frontend**: Vanilla JS (ES modules), Chart.js, Leaflet, Stellarium Web Engine (WASM)
+- **Backend**: Python HTTP server, Fly.io deployment
+- **APIs**: Open-Meteo, OpenWeatherMap, AccuWeather, cau-ca.com, tide-forecast.com
 
-### 1. Clone & Setup Environment
-
-```bash
-# Clone the repository
-git clone https://github.com/your-username/stargaze.git
-cd stargaze
-
-# Copy the environment template
-cp .env.example .env
-```
-
-Edit `.env` to configure your API keys (optional; free fallbacks like Open-Meteo and OpenStreetMap are used automatically if keys are omitted).
-
-### 2. Install Dependencies
-
-```bash
-# Python dependencies
-pip install -r requirements.txt
-
-# Node.js development tools (ESLint, Prettier)
-npm install
-```
-
-### 3. Run Locally
-
-Start the local server:
+## Deploy
 
 ```bash
-python3 -m backend.main
+flyctl deploy
 ```
-
-Open your browser and navigate to:
-👉 `http://localhost:3000/`
-
----
-
-## 🧪 Code Quality & Formatting
-
-Run code quality checks and formatting:
-
-```bash
-# Check code formatting and linting
-npm run check
-
-# Auto-format codebase with Prettier
-npm run format
-```
-
----
-
-## ☁️ Deployment (Fly.io)
-
-This project includes a ready-to-use `Dockerfile` and `fly.toml` for seamless deployment on Fly.io:
-
-```bash
-# Deploy to Fly.io
-fly deploy
-```
-
----
-
-## 📜 License
-
-This project is licensed under the [MIT License](LICENSE).

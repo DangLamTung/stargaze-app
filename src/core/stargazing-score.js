@@ -119,16 +119,35 @@ export function calculateHourlyScore(hourData, moonPhase, bortleClass = 5) {
     totalScore += (scores[key] || 50) * weight;
   }
 
-  // Cloud is the #1 killer for stargazing. Heavy penalties.
-  if (cloudPct > 65) { totalScore = 1; }
-  else if (cloudPct > 50) { totalScore = Math.min(totalScore, 5); }
-  else if (cloudPct > 30) { totalScore = Math.min(totalScore, 15); }
+  // ─── Cloud layer penalties (harsher) ───
+  var lowCloud = hourData.cloudCoverLow ?? 0;
+  var midCloud = hourData.cloudCoverMid ?? 0;
+  var highCloud = hourData.cloudCoverHigh ?? 0;
 
-  // Rain + any cloud = game over
+  // Low clouds = killer. Even 20% low cloud ruins everything.
+  if (lowCloud > 40)      { totalScore = 1; }
+  else if (lowCloud > 20) { totalScore = Math.min(totalScore, 3); }
+  else if (lowCloud > 10) { totalScore = Math.min(totalScore, 8); }
+
+  // Mid clouds: bad but slightly less than low
+  if (midCloud > 60)      { totalScore = Math.min(totalScore, 1); }
+  else if (midCloud > 40) { totalScore = Math.min(totalScore, 4); }
+  else if (midCloud > 20) { totalScore = Math.min(totalScore, 10); }
+
+  // High clouds: still block stars if thick enough
+  if (highCloud > 80)     { totalScore = Math.min(totalScore, 2); }
+  else if (highCloud > 60) { totalScore = Math.min(totalScore, 6); }
+  else if (highCloud > 40) { totalScore = Math.min(totalScore, 12); }
+
+  // Total cloud fallback (when layer data unavailable)
+  if (cloudPct > 80)      { totalScore = Math.min(totalScore, 1); }
+  else if (cloudPct > 60) { totalScore = Math.min(totalScore, 4); }
+  else if (cloudPct > 40) { totalScore = Math.min(totalScore, 10); }
+
+  // Rain + any significant cloud = game over
   const precip = hourData.precipProbability ?? 0;
-  if (precip > 30 && cloudPct > 30) {
-    totalScore = 1;
-  }
+  if (precip > 40 && cloudPct > 20) { totalScore = 1; }
+  else if (precip > 20 && cloudPct > 40) { totalScore = 1; }
 
   // Clear skies should not be dragged down by model rain probability alone
   if (hourData.cloudCover != null && hourData.cloudCover <= 15) {

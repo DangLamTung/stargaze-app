@@ -29,13 +29,18 @@ Find the best nights for stargazing with real-time weather data, cloud coverage 
 - Sky darkness (Bortle) estimation from camera
 - Capture sky photos with lens overlay
 
-| AR Sky View | Sky Controls |
-|---|---|
-| ![AR Sky View](docs/ar-sky-view.png) | ![Sky Controls](docs/ar-controls.jpg) |
+<p align="center">
+  <img src="docs/ar-sky-view.png" width="45%" alt="AR Sky View" />
+  &nbsp;
+  <img src="docs/ar-controls.jpg" width="45%" alt="Sky Controls" />
+</p>
+<p align="center">
+  <img src="docs/ar-bortle.jpg" width="45%" alt="Sky Score & Bortle" />
+  &nbsp;
+  <img src="docs/ar-camera-settings.jpg" width="45%" alt="Notifications" />
+</p>
 
-| Sky Score & Bortle | Notifications |
-|---|---|
-| ![Bortle](docs/ar-bortle.jpg) | ![Settings](docs/ar-camera-settings.jpg) |### 🌊 Tide & Sea
+### 🌊 Tide & Sea
 - Tide predictions from cau-ca.com (Vietnamese source)
 - Fallback to tide-forecast.com global model
 - Interactive 24h tide chart with drag-to-pan

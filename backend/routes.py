@@ -117,8 +117,9 @@ def _accuweather(self):
     try:
         data = handle_api_accuweather_current(self.path)
         self._json(200, data)
-    except Exception:
-        self._json(500, {"error": "Failed"})
+    except Exception as e:
+        import traceback
+        self._json(500, {"error": str(e), "trace": traceback.format_exc()})
 
 
 def _weatherapi(self):

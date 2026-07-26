@@ -214,10 +214,12 @@ function _updateClock() {
 
   var yr = document.getElementById('ar-yr'),
     mo = document.getElementById('ar-mo'),
-    dy = document.getElementById('ar-dy');
+    dy = document.getElementById('ar-dy'),
+    dow = document.getElementById('ar-dow');
   if (yr) yr.textContent = d.getFullYear();
   if (mo) mo.textContent = String(d.getMonth() + 1).padStart(2, '0');
   if (dy) dy.textContent = String(d.getDate()).padStart(2, '0');
+  if (dow) dow.textContent = d.toLocaleDateString('en-US', { weekday: 'short' });
 
   var h = document.getElementById('ar-h'),
     m = document.getElementById('ar-m'),

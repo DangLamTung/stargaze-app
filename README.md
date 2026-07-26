@@ -32,12 +32,12 @@ Find the best nights for stargazing with real-time weather data, cloud coverage 
 <p align="center">
   <img src="docs/ar-sky-view.png" width="45%" alt="AR Sky View" />
   &nbsp;
-  <img src="docs/ar-controls.jpg" width="45%" alt="Sky Controls" />
+  <img src="docs/ar-controls.jpg" width="45%" alt="Weather Prediction" />
 </p>
 <p align="center">
   <img src="docs/ar-bortle.jpg" width="45%" alt="Sky Score & Bortle" />
   &nbsp;
-  <img src="docs/ar-camera-settings.jpg" width="45%" alt="Notifications" />
+  <img src="docs/ar-camera-settings.jpg" width="45%" alt="Camera lens simulation" />
 </p>
 
 ### 🌊 Tide & Sea

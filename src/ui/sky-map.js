@@ -244,7 +244,7 @@ function _updateClock() {
     ss = String(d.getSeconds()).padStart(2, '0');
   var el = document.getElementById('sky-realtime');
   if (el)
-    el.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + hh + ':' + mm + ':' + ss;
+    el.textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + hh + ':' + mm + ':' + ss;
 
   var yr = document.getElementById('sky-yr'),
     mo = document.getElementById('sky-mo'),

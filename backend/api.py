@@ -1392,7 +1392,7 @@ def handle_api_accuweather_current(path):
     lat, lon = _get_lat_lon_from_path(path)
     key = os.environ.get("ACCUWEATHER_KEY", "")
     if not key:
-        return json.dumps({"error": "ACCUWEATHER_KEY not configured"}).encode()
+        return {"error": "ACCUWEATHER_KEY not configured"}
     ssl_ctx = ssl.create_default_context()
     # Step 1: location key
     loc_url = f"https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey={key}&q={lat},{lon}"
@@ -1400,12 +1400,12 @@ def handle_api_accuweather_current(path):
     with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
         loc = json.loads(resp.read())
     if not loc.get("Key"):
-        return json.dumps({"error": "Location not found"}).encode()
+        return {"error": "Location not found"}
     # Step 2: current conditions
     cur_url = f"https://dataservice.accuweather.com/currentconditions/v1/{loc['Key']}?apikey={key}&details=true"
     req = urllib.request.Request(cur_url, headers={"User-Agent": "StarGaze/1.0"})
     with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
         data = json.loads(resp.read())
     if not data:
-        return json.dumps({"error": "No data"}).encode()
-    return json.dumps(data[0]).encode()
+        return {"error": "No data"}
+    return data[0]

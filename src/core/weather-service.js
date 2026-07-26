@@ -269,22 +269,22 @@ function patchCurrentConditions(parsed, patch) {
  *
  * Priority chain (first source with non-null cloudCover wins):
  *   1. METAR          — real airport observation, free, no key
- *   2. WeatherAPI.com — observation-blended global, 1M free calls/mo (needs WEATHERAPI_KEY env)
- *   3. AccuWeather    — commercial-grade observations (needs ACCUWEATHER_KEY env)
- *   4. OpenWeatherMap — station + satellite blend (needs OWM_KEY env)
- *   5. Satellite IR   — Himawari-8 B13 infrared. Demoted: IR misses warm tropical rain clouds.
- *   6. Met.no         — model nowcast
- *   7. Open-Meteo     — model forecast, last resort
+ *   2. AccuWeather    — commercial-grade observations (needs ACCUWEATHER_KEY env)
+ *   3. WeatherAPI.com — observation-blended global, 1M free calls/mo (needs WEATHERAPI_KEY env)
+ *   4. Open-Meteo     — ECMWF ensemble 9km, best free model
+ *   5. OpenWeatherMap — station + satellite blend (needs OWM_KEY env)
+ *   6. Satellite IR   — Himawari-8 B13 infrared
+ *   7. Met.no         — model nowcast
  *
  * Cloud cover is validated against the recent trend.
  */
 function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed) {
   const chain = [
-    { label: 'metar', data: metarData }, // 1. Airport obs — most accurate point measurement
-    { label: 'open-meteo', data: openMeteoCurrent() }, // 2. ECMWF ensemble 9km — best free model
-    { label: 'accuweather', data: accuWeatherData }, // 3. Paid commercial — best cloud cover
-    { label: 'weatherapi', data: weatherapiData }, // 4. Paid commercial — 15-min refresh
-    { label: 'owm', data: owmData }, // 5. OpenWeatherMap — free station+satellite (needs OWM_KEY)
+    { label: 'metar', data: metarData }, // 1. Airport obs — real measurement
+    { label: 'accuweather', data: accuWeatherData }, // 2. Paid commercial — best cloud cover
+    { label: 'weatherapi', data: weatherapiData }, // 3. Paid commercial — 15-min refresh
+    { label: 'open-meteo', data: openMeteoCurrent() }, // 4. ECMWF ensemble 9km — best free model
+    { label: 'owm', data: owmData }, // 5. OpenWeatherMap — free station+satellite
     { label: 'satellite', data: satData }, // 6. Real-time IR — Himawari-8
     { label: 'metno', data: metNoData }, // 7. ECMWF nowcast
   ].filter(s => s.data);

@@ -10,8 +10,6 @@ import {
   fetchWeatherApiForecast,
   fetchAccuWeatherCurrent,
   fetchOwmCurrent,
-  fetchMetNoCurrent,
-  fetchMetNoForecast,
 } from './weather-sources.js';
 
 // ─── AccuWeather toggle (paid — OFF by default) ───
@@ -242,7 +240,7 @@ function findNearestHourlyIndex(hourly, time = Date.now()) {
 function patchCurrentConditions(parsed, patch) {
   if (!patch || !parsed.hourly?.length) return;
 
-  const idx = findNearestHourlyIndex(parsed.hourly); // cloudCover = (OM * 2 + WAPI * 2 + Met.no * 1) / total_weight
+  const idx = findNearestHourlyIndex(parsed.hourly);
   if (idx < 0) return;
 
   const slot = parsed.hourly[idx];
@@ -274,11 +272,10 @@ function patchCurrentConditions(parsed, patch) {
  *   4. Open-Meteo     — ECMWF ensemble 9km, best free model
  *   5. OpenWeatherMap — station + satellite blend (needs OWM_KEY env)
  *   6. Satellite IR   — Himawari-8 B13 infrared
- *   7. Met.no         — model nowcast
  *
  * Cloud cover is validated against the recent trend.
  */
-function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed) {
+function buildLivePatch(satData, metarData, weatherapiData, owmData, accuWeatherData, parsed) {
   const chain = [
     { label: 'metar', data: metarData }, // 1. Airport obs — real measurement
     { label: 'accuweather', data: accuWeatherData }, // 2. Paid commercial — best cloud cover
@@ -286,7 +283,6 @@ function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, 
     { label: 'open-meteo', data: openMeteoCurrent() }, // 4. ECMWF ensemble 9km — best free model
     { label: 'owm', data: owmData }, // 5. OpenWeatherMap — free station+satellite
     { label: 'satellite', data: satData }, // 6. Real-time IR — Himawari-8
-    { label: 'metno', data: metNoData }, // 7. ECMWF nowcast
   ].filter(s => s.data);
 
   function openMeteoCurrent() {
@@ -325,7 +321,7 @@ function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, 
       const avgOther = nonSatClouds.reduce((a, b) => a + b, 0) / nonSatClouds.length;
       if (avgOther > 60) {
         cloudCover = Math.round(avgOther);
-        chain[0].label = chain[1]?.label || 'metno';
+        chain[0].label = chain[1]?.label || 'open-meteo';
       }
     }
   }
@@ -406,12 +402,11 @@ function validateAgainstTrend(liveCloud, hourly, lookbackHours = 4, maxJump = 35
 /**
  * Blend multiple forecast sources into Open-Meteo hourly cloud data.
  * Sources are matched to the nearest hour (±30 min tolerance).
- * Weights: Open-Meteo 2×, WeatherAPI 2×, Met.no 1×
+ * Weights: Open-Meteo 2×, WeatherAPI 2×
  */
-function blendForecastClouds(hourly, metNoTimeseries, wapiTimeseries) {
-  if (!hourly?.length) return;
+function blendForecastClouds(hourly, wapiTimeseries) {
+  if (!hourly?.length || !wapiTimeseries?.length) return;
   const sources = [
-    { data: metNoTimeseries, weight: 1 },
     { data: wapiTimeseries, weight: 2 },
   ].filter(s => s.data?.length);
 
@@ -559,8 +554,6 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
       metarData,
       weatherapiData,
       owmData,
-      metNoData,
-      metNoForecast,
       wapiForecast,
       accuWeatherData,
       pressureRes,
@@ -571,8 +564,6 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
       fetchMetarCurrent(numLat, numLon),
       fetchWeatherApiCurrent(numLat, numLon),
       fetchOwmCurrent(numLat, numLon),
-      fetchMetNoCurrent(numLat, numLon),
-      fetchMetNoForecast(numLat, numLon),
       fetchWeatherApiForecast(numLat, numLon),
       isAccuWeatherEnabled() ? fetchAccuWeatherCurrent(numLat, numLon) : Promise.resolve(null),
       fetchWithTimeout(pressureUrl, 8000)
@@ -598,9 +589,9 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
     }
 
     // Blend multiple forecast sources into Open-Meteo hourly data
-    blendForecastClouds(parsed.hourly, metNoForecast, wapiForecast);
+    blendForecastClouds(parsed.hourly, wapiForecast);
 
-    const livePatch = buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed);
+    const livePatch = buildLivePatch(satData, metarData, weatherapiData, owmData, accuWeatherData, parsed);
 
     if (livePatch) {
       patchCurrentConditions(parsed, livePatch);

@@ -26,10 +26,15 @@ export async function loadRecommendationsInto(resultsSelector, loadingSelector, 
       loadingEl.innerHTML = '<div class="spinner"></div><p>Scoring ' + spots.length + ' famous places...</p>';
 
     var weatherData = await getBatchWeatherData(spots, 'auto');
-    var bortles = await batchEstimateBortle(spots);
-    spots.forEach(function (s, i) {
-      s.bortle = bortles[i];
+    var missingSpots = spots.filter(function (s) {
+      return s.bortle == null;
     });
+    if (missingSpots.length > 0) {
+      var bortles = await batchEstimateBortle(missingSpots);
+      missingSpots.forEach(function (s, i) {
+        s.bortle = bortles[i];
+      });
+    }
 
     var ranked = rankBestLocations(spots, weatherData);
     if (!ranked || !ranked.length) {

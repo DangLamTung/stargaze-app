@@ -205,10 +205,10 @@ export function renderNowScore(state, $) {
     var bortle = state.bortleClass || 5;
     var parts = [];
 
-    // Bortle
+    // Bortle / City Sky description
     if (bortle <= 3) parts.push('🟢 Bortle ' + bortle + ' — dark skies, ideal for Milky Way & DSOs');
     else if (bortle <= 5) parts.push('🟡 Bortle ' + bortle + ' — decent for bright DSOs (clusters, Andromeda)');
-    else parts.push('🔴 Bortle ' + bortle + ' — poor for DSOs, try planets or lunar observing');
+    else parts.push('🌆 City Sky — high light pollution; best for planets, Moon & bright stars');
 
     // PM2.5
     if (pm25 != null) {

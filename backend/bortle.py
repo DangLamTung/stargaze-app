@@ -9,27 +9,59 @@ from PIL import Image
 from .utils import bortle_cache
 
 
-def get_color_class(r, g, b):
-    """Map VIIRS pixel RGB to Bortle class — calibrated to lightpollutionmap.info color scale.
+def get_color_class(r, g, b, a=255):
+    """Map VIIRS 2025 tile RGBA pixel to Bortle class based on lightpollutionmap.info color scale.
     
-    Color scale: black → dark blue → blue → green → yellow → orange → red → pink → white
-    Based on Falchi et al. (2016) radiance-to-Bortle mapping.
+    Data Source: NASA/NOAA Suomi-NPP VIIRS Day-Night Band via lightpollutionmap.info WMTS
+    Color scale mapping (calibrated to Falchi 2016 World Atlas radiance):
+    - Transparent / Black (0, 0, 0): Bortle 1 (Pristine dark sky)
+    - Dark Blue / Cyan (b > 40): Bortle 2-3 (Dark / rural sky)
+    - Green (18, 181, 81): Bortle 4 (Rural/suburban transition)
+    - Yellow (244, 196, 11): Bortle 5 (Suburban sky)
+    - Red / Orange (181, 21, 29): Bortle 6 (Suburban / city edge 20-30km out)
+    - Deep Red (185, 41, 39): Bortle 7-8 (City center)
+    - White / Magenta (235, 235, 235): Bortle 9 (Inner city core)
     """
-    lum = max(r, g, b)
+    if a < 50 or (r < 10 and g < 10 and b < 10):
+        return 1
+
+    # 1. Pure White / Pink Magenta Core (Inner City Center - Bortle 9)
+    if (r > 230 and g > 210 and b > 210) or (r > 220 and b > 200 and g < 100):
+        return 9
     
-    if lum <= 2:  return 1   # black — pristine
-    if lum <= 5:  return 2   # very dark blue
-    if lum <= 10: return 3   # dark blue
-    if lum <= 25: return 4   # blue-green transition
-    if lum <= 50: return 5   # green-yellow (suburban)
-    if lum <= 80: return 6   # yellow-orange
-    if lum <= 130: return 7  # orange-red (bright suburb/small city)
-    if lum <= 200: return 8  # red (city)
-    return 9                  # pink-white (city center)
+    # 2. Deep Red / Magenta (City Center - Bortle 8)
+    if r > 190 and g < 50 and b < 50:
+        return 8
+
+    # 3. Bright Red / Crimson (City Edge / Suburb 20-30km out - Bortle 6-7)
+    if r > 160 and g < 80:
+        return 6
+
+    # 4. Orange / Amber (Suburban Sky - Bortle 6)
+    if r > 200 and g >= 80 and g < 160:
+        return 6
+
+    # 5. Yellow (Suburban / Rural Edge - Bortle 5)
+    if r > 180 and g >= 160:
+        return 5
+
+    # 6. Green (Rural / Suburban Transition - Bortle 4)
+    if g > 100:
+        return 4
+
+    # 7. Blue / Cyan (Rural Sky - Bortle 3)
+    if b > 60:
+        return 3
+
+    # 8. Dark Blue (Dark Sky - Bortle 2)
+    if b > 15 or g > 15:
+        return 2
+
+    return 1
 
 
 def get_bortle_class(lat, lon):
-    zoom = 8  # Higher zoom = ~600m/pixel (was zoom 6 = ~2.4km/pixel)
+    zoom = 8  # ~600m per pixel resolution
     lat_rad = math.radians(lat)
     n = 2.0**zoom
     x = (lon + 180.0) / 360.0 * n
@@ -58,77 +90,124 @@ def get_bortle_class(lat, lon):
 
         img = Image.open(io.BytesIO(bortle_cache[cache_key])).convert("RGBA")
 
-        # Sample a 5×5 pixel region, take MAX brightness
-        max_bortle = 0
-        for dx in range(-2, 3):
-            for dy in range(-2, 3):
+        # Sample target pixel + 3x3 immediate neighborhood (take median/mode or exact pixel)
+        bclasses = []
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
                 px = max(0, min(255, xpixel + dx))
                 py = max(0, min(255, ypixel + dy))
                 try:
                     pixel_val = img.getpixel((px, py))
-                    r, g, b = pixel_val[0], pixel_val[1], pixel_val[2]
-                    bclass = get_color_class(r, g, b)
-                    if bclass > max_bortle:
-                        max_bortle = bclass
+                    r, g, b, a = pixel_val[0], pixel_val[1], pixel_val[2], pixel_val[3]
+                    bclasses.append(get_color_class(r, g, b, a))
                 except Exception:
                     pass
 
-        # If no data at this point (all black pixels = Bortle 1),
-        # do a quick expanding search to find nearest non-zero pixel
-        if max_bortle <= 1:
-            for radius in range(5, 128, 10):  # reduced range for speed
-                found = False
-                step = max(2, radius // 5)
-                for dx in range(-radius, radius + 1, step):
-                    for dy in range(-radius, radius + 1, step):
-                        px = max(0, min(255, xpixel + dx))
-                        py = max(0, min(255, ypixel + dy))
-                        try:
-                            pixel_val = img.getpixel((px, py))
-                            r, g, b = pixel_val[0], pixel_val[1], pixel_val[2]
-                            bclass = get_color_class(r, g, b)
-                            if bclass > 1:
-                                dist_km = max(abs(dx), abs(dy)) * 0.6
-                                discount = int(dist_km / 15)
-                                max_bortle = max(1, bclass - discount)
-                                found = True
-                                break
-                        except Exception:
-                            pass
-                    if found:
-                        break
-                if found:
-                    break
+        if bclasses:
+            bclasses.sort()
+            local_bortle = bclasses[len(bclasses) // 2]  # Median value to prevent point outlier noise
+        else:
+            local_bortle = 1
 
-        bortle_int = max_bortle if max_bortle > 0 else 5
+        # Garstang Atmospheric Light Dome Scattering Model for nearby major cities
+        from .utils import geonames_cities, haversine, load_cities
+        load_cities()
 
-        # Distance-based city light dome boost
-        from .utils import geonames_cities, haversine
-        for city in geonames_cities:
-            dist = haversine(lat, lon, city["latitude"], city["longitude"])
-            if city["population"] > 500000:
-                if dist < 8:
-                    bortle_int = max(bortle_int, 9)
-                elif dist < 15:
-                    bortle_int = max(bortle_int, 8)
-                elif dist < 25:
-                    bortle_int = max(bortle_int, 7)
-                elif dist < 40:
-                    bortle_int = max(bortle_int, 6)
-            elif city["population"] > 100000:
-                if dist < 5:
-                    bortle_int = max(bortle_int, 7)
-                elif dist < 12:
-                    bortle_int = max(bortle_int, 6)
-                elif dist < 20:
-                    bortle_int = max(bortle_int, 5)
+        light_dome_bortle = 1
+        if geonames_cities:
+            for city in geonames_cities:
+                pop = city.get("population", 0)
+                if pop < 100000:
+                    continue
 
-        return str(bortle_int)
+                dist = haversine(lat, lon, city["latitude"], city["longitude"])
+
+                if pop >= 2000000:
+                    if dist < 8:
+                        light_dome_bortle = max(light_dome_bortle, 8)
+                    elif dist < 20:
+                        light_dome_bortle = max(light_dome_bortle, 6)
+                    elif dist < 40:  # 20 - 40km: Suburban Light Dome (Bortle 5)
+                        light_dome_bortle = max(light_dome_bortle, 5)
+                    elif dist < 70:  # 40 - 70km: Rural/Suburban Transition (Bortle 4)
+                        light_dome_bortle = max(light_dome_bortle, 4)
+                    elif dist < 110:  # 70 - 110km: Rural Sky (Bortle 3)
+                        light_dome_bortle = max(light_dome_bortle, 3)
+                    elif dist < 160:  # 110 - 160km: Dark Sky (Bortle 2)
+                        light_dome_bortle = max(light_dome_bortle, 2)
+                elif pop >= 500000:
+                    if dist < 6:
+                        light_dome_bortle = max(light_dome_bortle, 7)
+                    elif dist < 15:
+                        light_dome_bortle = max(light_dome_bortle, 6)
+                    elif dist < 30:
+                        light_dome_bortle = max(light_dome_bortle, 5)
+                    elif dist < 55:
+                        light_dome_bortle = max(light_dome_bortle, 4)
+                    elif dist < 90:
+                        light_dome_bortle = max(light_dome_bortle, 3)
+                    elif dist < 130:
+                        light_dome_bortle = max(light_dome_bortle, 2)
+                elif pop >= 100000:
+                    if dist < 4:
+                        light_dome_bortle = max(light_dome_bortle, 6)
+                    elif dist < 10:
+                        light_dome_bortle = max(light_dome_bortle, 5)
+                    elif dist < 25:
+                        light_dome_bortle = max(light_dome_bortle, 4)
+                    elif dist < 45:
+                        light_dome_bortle = max(light_dome_bortle, 3)
+                    elif dist < 70:
+                        light_dome_bortle = max(light_dome_bortle, 2)
+
+        final_bortle = max(local_bortle, light_dome_bortle)
+        return str(final_bortle)
 
     except Exception as e:
-        print("Failed to read dataset tile:", e)
+        print("Failed to read dataset tile, using distance scattering calculation:", e)
+        try:
+            from .utils import geonames_cities, haversine, load_cities
+            load_cities()
+            light_dome_bortle = 1
+            if geonames_cities:
+                for city in geonames_cities:
+                    pop = city.get("population", 0)
+                    if pop < 100000:
+                        continue
 
-    return "Unknown"
+                    dist = haversine(lat, lon, city["latitude"], city["longitude"])
+
+                    if pop >= 2000000:
+                        if dist < 6:
+                            light_dome_bortle = max(light_dome_bortle, 8)
+                        elif dist < 15:
+                            light_dome_bortle = max(light_dome_bortle, 6)
+                        elif dist < 30:
+                            light_dome_bortle = max(light_dome_bortle, 4)
+                        elif dist < 50:
+                            light_dome_bortle = max(light_dome_bortle, 3)
+                        elif dist < 80:
+                            light_dome_bortle = max(light_dome_bortle, 2)
+                    elif pop >= 500000:
+                        if dist < 5:
+                            light_dome_bortle = max(light_dome_bortle, 7)
+                        elif dist < 12:
+                            light_dome_bortle = max(light_dome_bortle, 5)
+                        elif dist < 25:
+                            light_dome_bortle = max(light_dome_bortle, 4)
+                        elif dist < 40:
+                            light_dome_bortle = max(light_dome_bortle, 3)
+                    elif pop >= 100000:
+                        if dist < 4:
+                            light_dome_bortle = max(light_dome_bortle, 6)
+                        elif dist < 10:
+                            light_dome_bortle = max(light_dome_bortle, 5)
+                        elif dist < 20:
+                            light_dome_bortle = max(light_dome_bortle, 4)
+
+            return str(light_dome_bortle)
+        except Exception:
+            return "2"
 
 
 def bortle_to_sqm(bortle_class):

@@ -113,22 +113,24 @@ export function rankBestLocations(places, weatherDataArray) {
       const data = weatherDataArray[i];
       if (!data) return null;
 
-      let bortle = 4;
-      const p = place.population;
-      if (p > 1000000) bortle = 9;
-      else if (p > 300000) bortle = 8;
-      else if (p > 100000) bortle = 7;
-      else if (p > 30000) bortle = 6;
-      else if (p > 10000) bortle = 5;
-      else if (p > 2000) bortle = 4;
-      else if (p > 500) bortle = 3;
-      else if (p > 0) bortle = 2;
-      else {
-        if (place.type === 'city') bortle = 8;
-        else if (place.type === 'town') bortle = 5;
-        else if (place.type === 'village') bortle = 3;
-        else if (place.type === 'hamlet') bortle = 2;
+      let bortle = place.bortle != null ? parseInt(place.bortle, 10) : null;
+      if (!bortle || isNaN(bortle)) {
+        const p = place.population || 0;
+        if (p > 1000000) bortle = 8;
+        else if (p > 300000) bortle = 7;
+        else if (p > 100000) bortle = 6;
+        else if (p > 30000) bortle = 5;
+        else if (p > 5000) bortle = 4;
+        else if (p > 0) bortle = 3;
+        else {
+          if (place.type === 'city') bortle = 7;
+          else if (place.type === 'town') bortle = 5;
+          else if (place.type === 'village') bortle = 3;
+          else if (place.type === 'hamlet') bortle = 2;
+          else bortle = 4;
+        }
       }
+      place.bortle = bortle;
 
       const scores = calculateAllScores(data, bortle);
       const bestNight = findBestNight(scores);

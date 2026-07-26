@@ -182,7 +182,7 @@ export function applyNearbyFilters() {
       return `<div class="nearby-spot-card" onclick="window.selectNearbySpot(${i})">
       <div class="nearby-spot-name">${r.place.name}${r.place.id === 'current' ? ' (Here)' : ''}</div>
       <div class="nearby-spot-distance">${r.place.distance < 1 ? '0km' : r.place.distance.toFixed(0) + 'km'}</div>
-      <div class="nearby-spot-bortle" style="color:${bColor}">B${r.place.bortle}</div>
+      ${r.place.bortle ? `<div class="nearby-spot-bortle" style="color:${bColor}">B${r.place.bortle}</div>` : ''}
       <div class="nearby-spot-gauge"><svg viewBox="0 0 60 60" class="gauge-svg"><circle cx="30" cy="30" r="25" class="gauge-bg"/><circle cx="30" cy="30" r="25" class="gauge-fill" style="stroke-dasharray:${circ};stroke-dashoffset:${off};stroke:${g[0]}"/></svg><div class="score-value" style="color:${g[0]}">${an.score}</div><div class="score-label">${an.rating || ''}</div></div>
       <div class="nearby-spot-meta"><span>☁️${an.avgCloudCover}%</span><span>${dateStr}</span></div>
     </div>`;

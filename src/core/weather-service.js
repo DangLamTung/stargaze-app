@@ -574,7 +574,7 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
       fetchMetNoCurrent(numLat, numLon),
       fetchMetNoForecast(numLat, numLon),
       fetchWeatherApiForecast(numLat, numLon),
-      isAccuWeatherEnabled() ? fetchAccuWeatherCurrent(numLat, numLon) : Promise.resolve(null),
+      fetchAccuWeatherCurrent(numLat, numLon),
       fetchWithTimeout(pressureUrl, 8000)
         .then(r => (r.ok ? r.json() : null))
         .catch(() => null),

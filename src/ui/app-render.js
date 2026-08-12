@@ -175,7 +175,11 @@ export function renderNowScore(state, $) {
       'open-meteo': '🌍 OM',
     };
     consensusEl.innerHTML = Object.entries(allSources)
-      .sort(([, a], [, b]) => a - b)
+      .sort(([keyA, a], [keyB, b]) => {
+        if (keyA === 'accuweather') return -1;
+        if (keyB === 'accuweather') return 1;
+        return a - b;
+      })
       .map(([key, pct]) => {
         const color =
           pct <= 20 ? '#00e676' : pct <= 40 ? '#76ff03' : pct <= 60 ? '#ffea00' : pct <= 80 ? '#ff9800' : '#f44336';

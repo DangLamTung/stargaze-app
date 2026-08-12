@@ -17,9 +17,10 @@ import {
 // ─── AccuWeather toggle (paid — OFF by default) ───
 export function isAccuWeatherEnabled() {
   try {
-    return localStorage.getItem('use_accuweather') === 'true';
+    const val = localStorage.getItem('use_accuweather');
+    return val === null || val === 'true';
   } catch (_) {
-    return false;
+    return true;
   }
 }
 export function setAccuWeatherEnabled(on) {
@@ -280,7 +281,7 @@ function patchCurrentConditions(parsed, patch) {
  */
 function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed) {
   const chain = [
-    { label: 'accuweather', data: isAccuWeatherEnabled() ? accuWeatherData : null }, // 1. Paid commercial
+    { label: 'accuweather', data: accuWeatherData }, // 1. Paid commercial — TOP priority
     { label: 'metar', data: metarData }, // 2. Airport obs — real measurement
     { label: 'weatherapi', data: weatherapiData }, // 3. Paid commercial — 15-min refresh
     { label: 'open-meteo', data: openMeteoCurrent() }, // 4. ECMWF ensemble 9km — best free model

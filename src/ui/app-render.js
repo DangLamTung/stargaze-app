@@ -174,10 +174,12 @@ export function renderNowScore(state, $) {
       metno: '🇳🇴 Met',
       'open-meteo': '🌍 OM',
     };
+    const priorityMap = { accuweather: 0, 'open-meteo': 1 };
     consensusEl.innerHTML = Object.entries(allSources)
       .sort(([keyA, a], [keyB, b]) => {
-        if (keyA === 'accuweather') return -1;
-        if (keyB === 'accuweather') return 1;
+        const pA = priorityMap[keyA] ?? 99;
+        const pB = priorityMap[keyB] ?? 99;
+        if (pA !== pB) return pA - pB;
         return a - b;
       })
       .map(([key, pct]) => {

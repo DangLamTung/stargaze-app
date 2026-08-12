@@ -282,9 +282,9 @@ function patchCurrentConditions(parsed, patch) {
 function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed) {
   const chain = [
     { label: 'accuweather', data: accuWeatherData }, // 1. Paid commercial — TOP priority
-    { label: 'metar', data: metarData }, // 2. Airport obs — real measurement
-    { label: 'weatherapi', data: weatherapiData }, // 3. Paid commercial — 15-min refresh
-    { label: 'open-meteo', data: openMeteoCurrent() }, // 4. ECMWF ensemble 9km — best free model
+    { label: 'open-meteo', data: openMeteoCurrent() }, // 2. ECMWF ensemble 9km — #2 priority
+    { label: 'metar', data: metarData }, // 3. Airport obs — real measurement
+    { label: 'weatherapi', data: weatherapiData }, // 4. Paid commercial — 15-min refresh
     { label: 'owm', data: owmData }, // 5. OpenWeatherMap — free station+satellite
     { label: 'satellite', data: satData }, // 6. Real-time IR — Himawari-8
     { label: 'metno', data: metNoData }, // 7. ECMWF nowcast

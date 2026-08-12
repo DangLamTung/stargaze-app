@@ -1357,8 +1357,13 @@ def handle_api_weatherapi_current(path):
     url = f"https://api.weatherapi.com/v1/current.json?key={key}&q={lat},{lon}&aqi=no"
     req = urllib.request.Request(url, headers={"User-Agent": "StarGaze/1.0"})
     ssl_ctx = ssl.create_default_context()
-    with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        return json.dumps({"error": f"WeatherAPI error ({e.code})", "status": e.code}).encode()
+    except Exception as e:
+        return json.dumps({"error": f"WeatherAPI request failed: {str(e)}"}).encode()
 
 
 def handle_api_weatherapi_forecast(path):
@@ -1370,8 +1375,13 @@ def handle_api_weatherapi_forecast(path):
     url = f"https://api.weatherapi.com/v1/forecast.json?key={key}&q={lat},{lon}&days=3&aqi=no"
     req = urllib.request.Request(url, headers={"User-Agent": "StarGaze/1.0"})
     ssl_ctx = ssl.create_default_context()
-    with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        return json.dumps({"error": f"WeatherAPI error ({e.code})", "status": e.code}).encode()
+    except Exception as e:
+        return json.dumps({"error": f"WeatherAPI request failed: {str(e)}"}).encode()
 
 
 def handle_api_owm_current(path):

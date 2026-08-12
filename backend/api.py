@@ -1353,17 +1353,17 @@ def handle_api_weatherapi_current(path):
     lat, lon = _get_lat_lon_from_path(path)
     key = os.environ.get("WEATHERAPI_KEY", "")
     if not key:
-        return json.dumps({"error": "WEATHERAPI_KEY not configured"}).encode()
+        return {"error": "WEATHERAPI_KEY not configured"}
     url = f"https://api.weatherapi.com/v1/current.json?key={key}&q={lat},{lon}&aqi=no"
     req = urllib.request.Request(url, headers={"User-Agent": "StarGaze/1.0"})
     ssl_ctx = ssl.create_default_context()
     try:
         with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-            return resp.read()
+            return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        return json.dumps({"error": f"WeatherAPI error ({e.code})", "status": e.code}).encode()
+        return {"error": f"WeatherAPI error ({e.code})", "status": e.code}
     except Exception as e:
-        return json.dumps({"error": f"WeatherAPI request failed: {str(e)}"}).encode()
+        return {"error": f"WeatherAPI request failed: {str(e)}"}
 
 
 def handle_api_weatherapi_forecast(path):
@@ -1371,17 +1371,17 @@ def handle_api_weatherapi_forecast(path):
     lat, lon = _get_lat_lon_from_path(path)
     key = os.environ.get("WEATHERAPI_KEY", "")
     if not key:
-        return json.dumps({"error": "WEATHERAPI_KEY not configured"}).encode()
+        return {"error": "WEATHERAPI_KEY not configured"}
     url = f"https://api.weatherapi.com/v1/forecast.json?key={key}&q={lat},{lon}&days=3&aqi=no"
     req = urllib.request.Request(url, headers={"User-Agent": "StarGaze/1.0"})
     ssl_ctx = ssl.create_default_context()
     try:
         with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-            return resp.read()
+            return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        return json.dumps({"error": f"WeatherAPI error ({e.code})", "status": e.code}).encode()
+        return {"error": f"WeatherAPI error ({e.code})", "status": e.code}
     except Exception as e:
-        return json.dumps({"error": f"WeatherAPI request failed: {str(e)}"}).encode()
+        return {"error": f"WeatherAPI request failed: {str(e)}"}
 
 
 def handle_api_owm_current(path):
@@ -1389,12 +1389,17 @@ def handle_api_owm_current(path):
     lat, lon = _get_lat_lon_from_path(path)
     key = os.environ.get("OWM_KEY", "")
     if not key:
-        return json.dumps({"error": "OWM_KEY not configured"}).encode()
+        return {"error": "OWM_KEY not configured"}
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&units=metric&appid={key}"
     req = urllib.request.Request(url, headers={"User-Agent": "StarGaze/1.0"})
     ssl_ctx = ssl.create_default_context()
-    with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        return {"error": f"OpenWeatherMap error ({e.code})", "status": e.code}
+    except Exception as e:
+        return {"error": f"OpenWeatherMap request failed: {str(e)}"}
 
 
 def handle_api_accuweather_current(path):

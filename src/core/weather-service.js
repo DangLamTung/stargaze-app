@@ -267,9 +267,9 @@ function patchCurrentConditions(parsed, patch) {
 /**
  * Build a live "right now" snapshot using priority fallback.
  *
- * Priority chain (first source with non-null cloudCover wins):
- *   1. METAR          — real airport observation, free, no key
- *   2. AccuWeather    — commercial-grade observations (needs ACCUWEATHER_KEY env)
+ * Priority chain (AccuWeather at the TOP when available):
+ *   1. AccuWeather    — commercial-grade observations (TOP priority when key is set)
+ *   2. METAR          — real airport observation, free, no key
  *   3. WeatherAPI.com — observation-blended global, 1M free calls/mo (needs WEATHERAPI_KEY env)
  *   4. Open-Meteo     — ECMWF ensemble 9km, best free model
  *   5. OpenWeatherMap — station + satellite blend (needs OWM_KEY env)
@@ -280,8 +280,8 @@ function patchCurrentConditions(parsed, patch) {
  */
 function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, accuWeatherData, parsed) {
   const chain = [
-    { label: 'metar', data: metarData }, // 1. Airport obs — real measurement
-    { label: 'accuweather', data: accuWeatherData }, // 2. Paid commercial — best cloud cover
+    { label: 'accuweather', data: isAccuWeatherEnabled() ? accuWeatherData : null }, // 1. Paid commercial
+    { label: 'metar', data: metarData }, // 2. Airport obs — real measurement
     { label: 'weatherapi', data: weatherapiData }, // 3. Paid commercial — 15-min refresh
     { label: 'open-meteo', data: openMeteoCurrent() }, // 4. ECMWF ensemble 9km — best free model
     { label: 'owm', data: owmData }, // 5. OpenWeatherMap — free station+satellite

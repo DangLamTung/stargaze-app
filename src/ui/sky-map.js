@@ -244,7 +244,14 @@ function _updateClock() {
     ss = String(d.getSeconds()).padStart(2, '0');
   var el = document.getElementById('sky-realtime');
   if (el)
-    el.textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + hh + ':' + mm + ':' + ss;
+    el.textContent =
+      d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
+      ' ' +
+      hh +
+      ':' +
+      mm +
+      ':' +
+      ss;
 
   var yr = document.getElementById('sky-yr'),
     mo = document.getElementById('sky-mo'),
@@ -511,15 +518,14 @@ function _playbackTick(ts) {
   if (_playSpeed !== 0) _playAnimId = requestAnimationFrame(_playbackTick);
 }
 
+let _controlsBound = false;
+
 function _initControls() {
   _offsetToSimDate();
 
   var az = document.getElementById('sky-azimuth'),
     av = document.getElementById('sky-az-val');
   if (az) {
-    az.addEventListener('input', function () {
-      window._skyAz(parseInt(this.value));
-    });
     az.value = ctx.bearing;
     if (av) av.textContent = ctx.bearing + '°';
   }
@@ -531,107 +537,120 @@ function _initControls() {
     tm.max = 1439;
     tm.step = 1;
     tm.value = _prevSlider;
-    tm.addEventListener('input', function () {
-      _sliderDragging = true;
-      var sv = parseInt(this.value);
-      if (sv <= 0 && _prevSlider <= 1) {
-        _simDayOffset--;
-        this.value = 1439;
-        _prevSlider = 1439;
-        _simMinutes = _sliderToMinutes(1439);
-        _updateClock();
-        _applyTimeToEngine();
-        return;
-      }
-      if (sv >= 1439 && _prevSlider >= 1438) {
-        _simDayOffset++;
-        this.value = 0;
-        _prevSlider = 0;
-        _simMinutes = _sliderToMinutes(0);
-        _updateClock();
-        _applyTimeToEngine();
-        return;
-      }
-      _prevSlider = sv;
-      _simMinutes = _sliderToMinutes(sv);
-      _updateClock();
-      _applyTimeToEngine();
-    });
-    tm.addEventListener('change', function () {
-      _sliderDragging = false;
-      _prevSlider = parseInt(this.value);
-      _simMinutes = _sliderToMinutes(_prevSlider);
-      _updateClock();
-      _applyTimeToEngine();
-    });
   }
 
-  var dateFields = {
-    yr: function (d, delta) {
-      d.setFullYear(d.getFullYear() + delta);
-    },
-    mo: function (d, delta) {
-      d.setMonth(d.getMonth() + delta);
-    },
-    dy: function (d, delta) {
-      d.setDate(d.getDate() + delta);
-    },
-  };
-  Object.keys(dateFields).forEach(function (f) {
-    var up = document.getElementById('sky-' + f + '-up'),
-      dn = document.getElementById('sky-' + f + '-down'),
-      fn = dateFields[f];
-    if (up)
-      up.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, 1);
-        _syncSimFromDate(d);
-      });
-    if (dn)
-      dn.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, -1);
-        _syncSimFromDate(d);
-      });
-  });
+  if (!_controlsBound) {
+    _controlsBound = true;
 
-  var timeFields = {
-    h: function (d, delta) {
-      d.setHours(d.getHours() + delta);
-    },
-    m: function (d, delta) {
-      d.setMinutes(d.getMinutes() + delta);
-    },
-    s: function (d, delta) {
-      d.setSeconds(d.getSeconds() + delta);
-    },
-  };
-  Object.keys(timeFields).forEach(function (f) {
-    var up = document.getElementById('sky-' + f + '-up'),
-      dn = document.getElementById('sky-' + f + '-down'),
-      fn = timeFields[f];
-    if (up)
-      up.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, 1);
-        _syncSimFromDate(d);
+    if (az) {
+      az.addEventListener('input', function () {
+        window._skyAz(parseInt(this.value));
       });
-    if (dn)
-      dn.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, -1);
-        _syncSimFromDate(d);
+    }
+
+    if (tm) {
+      tm.addEventListener('input', function () {
+        _sliderDragging = true;
+        var sv = parseInt(this.value);
+        if (sv <= 0 && _prevSlider <= 1) {
+          _simDayOffset--;
+          this.value = 1439;
+          _prevSlider = 1439;
+          _simMinutes = _sliderToMinutes(1439);
+          _updateClock();
+          _applyTimeToEngine();
+          return;
+        }
+        if (sv >= 1439 && _prevSlider >= 1438) {
+          _simDayOffset++;
+          this.value = 0;
+          _prevSlider = 0;
+          _simMinutes = _sliderToMinutes(0);
+          _updateClock();
+          _applyTimeToEngine();
+          return;
+        }
+        _prevSlider = sv;
+        _simMinutes = _sliderToMinutes(sv);
+        _updateClock();
+        _applyTimeToEngine();
       });
-  });
+      tm.addEventListener('change', function () {
+        _sliderDragging = false;
+        _prevSlider = parseInt(this.value);
+        _simMinutes = _sliderToMinutes(_prevSlider);
+        _updateClock();
+        _applyTimeToEngine();
+      });
+    }
 
-  var btnReset = document.getElementById('sky-btn-reset');
-  if (btnReset) btnReset.addEventListener('click', _resetToNow);
-
-  var btnPause = document.getElementById('sky-btn-pause');
-  if (btnPause)
-    btnPause.addEventListener('click', function () {
-      _playSpeed === 0 ? _startPlayback(1) : _pausePlayback();
+    var dateFields = {
+      yr: function (d, delta) {
+        d.setFullYear(d.getFullYear() + delta);
+      },
+      mo: function (d, delta) {
+        d.setMonth(d.getMonth() + delta);
+      },
+      dy: function (d, delta) {
+        d.setDate(d.getDate() + delta);
+      },
+    };
+    Object.keys(dateFields).forEach(function (f) {
+      var up = document.getElementById('sky-' + f + '-up'),
+        dn = document.getElementById('sky-' + f + '-down'),
+        fn = dateFields[f];
+      if (up)
+        up.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, 1);
+          _syncSimFromDate(d);
+        });
+      if (dn)
+        dn.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, -1);
+          _syncSimFromDate(d);
+        });
     });
+
+    var timeFields = {
+      h: function (d, delta) {
+        d.setHours(d.getHours() + delta);
+      },
+      m: function (d, delta) {
+        d.setMinutes(d.getMinutes() + delta);
+      },
+      s: function (d, delta) {
+        d.setSeconds(d.getSeconds() + delta);
+      },
+    };
+    Object.keys(timeFields).forEach(function (f) {
+      var up = document.getElementById('sky-' + f + '-up'),
+        dn = document.getElementById('sky-' + f + '-down'),
+        fn = timeFields[f];
+      if (up)
+        up.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, 1);
+          _syncSimFromDate(d);
+        });
+      if (dn)
+        dn.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, -1);
+          _syncSimFromDate(d);
+        });
+    });
+
+    var btnReset = document.getElementById('sky-btn-reset');
+    if (btnReset) btnReset.addEventListener('click', _resetToNow);
+
+    var btnPause = document.getElementById('sky-btn-pause');
+    if (btnPause)
+      btnPause.addEventListener('click', function () {
+        _playSpeed === 0 ? _startPlayback(1) : _pausePlayback();
+      });
+  }
 
   if (_clockTimer) clearInterval(_clockTimer);
   _updateClock();
@@ -643,7 +662,7 @@ function _syncSimFromDate(d) {
   var now = new Date();
   var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   var simDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  _simDayOffset = Math.round((simDay - today) / 86400000);
+  _simDayOffset = Math.round((simDay.getTime() - today.getTime()) / 86400000);
   _updateSlidersFromSim();
 }
 function _resetToNow() {
@@ -655,7 +674,7 @@ function _resetToNow() {
 }
 function _updateSlidersFromSim() {
   var tm = document.getElementById('sky-time');
-  if (tm && !_sliderDragging) tm.value = _simMinutes;
+  if (tm && !_sliderDragging) tm.value = _minutesToSlider(_simMinutes);
   _updateClock();
   _applyTimeToEngine();
 }

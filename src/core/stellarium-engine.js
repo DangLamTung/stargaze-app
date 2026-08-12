@@ -87,7 +87,8 @@ export function configureCatalogs(engine) {
   engine.core.planets.addDataSource({ url: base + 'surveys/sso/jupiter', key: 'jupiter' });
   engine.core.planets.addDataSource({ url: base + 'surveys/sso/saturn', key: 'saturn' });
   if (engine.core.milkyway) engine.core.milkyway.addDataSource({ url: base + 'surveys/milkyway' });
-  if (engine.core.landscapes) engine.core.landscapes.addDataSource({ url: base + 'landscapes/guereins', key: 'guereins' });
+  if (engine.core.landscapes)
+    engine.core.landscapes.addDataSource({ url: base + 'landscapes/guereins', key: 'guereins' });
 
   // Visual settings
   if (engine.core.constellations) {

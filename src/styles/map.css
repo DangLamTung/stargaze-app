@@ -349,16 +349,16 @@
     left: 0;
     right: 0;
     width: 100%;
-    padding: 5px 12px;
+    padding: 6px 12px;
     gap: 6px;
     border-radius: 0;
-    flex-wrap: nowrap;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
   }
 
   /* FAB below header on mobile */
   .fab-stack {
-    top: 52px;
+    top: 58px;
     right: 6px;
     gap: 4px;
     z-index: 1001;
@@ -377,31 +377,34 @@
   }
 
   .icon-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.8rem;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    font-size: 0.85rem;
     flex-shrink: 0;
   }
 
   .search-container {
     flex: 1;
     min-width: 0;
-    order: 0;
-    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .search-container input {
-    padding: 4px 6px 4px 22px;
-    font-size: 0.75rem;
-    height: 26px;
+    padding: 4px 8px 4px 26px;
+    font-size: 0.78rem;
+    height: 30px;
     flex: 1;
     min-width: 0;
   }
 
   .search-container::before {
-    left: 6px;
-    font-size: 0.55rem;
-    top: 48%;
+    left: 8px;
+    font-size: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
   }
 
   .action-btn {
@@ -414,8 +417,18 @@
   }
 
   #favorite-btn {
-    font-size: 1rem !important;
+    font-size: 0.95rem !important;
     padding: 0 !important;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    flex-shrink: 0;
+  }
+
+  #locate-btn {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
     flex-shrink: 0;
   }
 
@@ -425,11 +438,12 @@
   }
 
   .favorites-list {
-    top: 42px;
-    width: calc(100% - 8px);
-    gap: 4px;
-    padding: 4px 8px 4px 8px;
-    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    width: 100%;
+    gap: 6px;
+    padding: 4px 0 2px 0;
+    margin-top: 2px;
+    position: relative;
+    top: 0;
   }
   .favorite-card {
     height: 30px;
@@ -499,55 +513,58 @@
       left: 0;
       right: 0;
       width: 100%;
-      padding: 3px 10px;
-      gap: 2px;
-      flex-wrap: nowrap;
+      padding: 4px 8px;
+      gap: 4px;
       border-radius: 0;
     }
     .logo {
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       letter-spacing: -0.5px;
       flex-shrink: 0;
-      margin-right: 1px;
+      margin-right: 2px;
     }
     .search-container {
       flex: 1;
       min-width: 0;
-      margin-top: 0;
-      order: 0;
-      gap: 1px;
+      gap: 3px;
     }
     .search-container input {
-      padding: 2px 4px 2px 18px;
-      font-size: 0.65rem;
-      height: 22px;
+      padding: 3px 6px 3px 24px;
+      font-size: 0.72rem;
+      height: 26px;
       flex: 1;
       min-width: 0;
     }
     .search-container::before {
-      left: 5px;
-      font-size: 0.5rem;
-      top: 48%;
+      left: 6px;
+      font-size: 0.65rem;
+      top: 50%;
+      transform: translateY(-50%);
     }
     .icon-btn {
-      width: 20px;
-      height: 20px;
-      font-size: 0.6rem;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      font-size: 0.75rem;
       flex-shrink: 0;
     }
     #favorite-btn {
-      font-size: 0.8rem !important;
+      font-size: 0.85rem !important;
       padding: 0 !important;
-      width: 18px;
-      height: 18px;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      flex-shrink: 0;
     }
     #locate-btn {
-      width: 18px;
-      height: 18px;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      flex-shrink: 0;
       padding: 0 !important;
     }
     .fab-stack {
-      top: 44px;
+      top: 52px;
       right: 4px;
       gap: 3px;
     }
@@ -565,13 +582,9 @@
     .action-btn .btn-icon {
       font-size: 0.7rem;
     }
-    #favorite-btn {
-      font-size: 0.9rem !important;
-      padding: 0 !important;
-    }
     .favorites-list {
-      top: 36px;
-      width: calc(100% - 4px);
+      top: 0;
+      width: 100%;
     }
     .favorite-card {
       height: 24px;

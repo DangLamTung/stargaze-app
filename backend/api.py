@@ -1394,18 +1394,24 @@ def handle_api_accuweather_current(path):
     if not key:
         return {"error": "ACCUWEATHER_KEY not configured"}
     ssl_ctx = ssl.create_default_context()
-    # Step 1: location key
-    loc_url = f"https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey={key}&q={lat},{lon}"
-    req = urllib.request.Request(loc_url, headers={"User-Agent": "StarGaze/1.0"})
-    with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-        loc = json.loads(resp.read())
-    if not loc.get("Key"):
-        return {"error": "Location not found"}
-    # Step 2: current conditions
-    cur_url = f"https://dataservice.accuweather.com/currentconditions/v1/{loc['Key']}?apikey={key}&details=true"
-    req = urllib.request.Request(cur_url, headers={"User-Agent": "StarGaze/1.0"})
-    with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-        data = json.loads(resp.read())
-    if not data:
-        return {"error": "No data"}
-    return data[0]
+    try:
+        # Step 1: location key
+        loc_url = f"https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey={key}&q={lat},{lon}"
+        req = urllib.request.Request(loc_url, headers={"User-Agent": "StarGaze/1.0"})
+        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
+            loc = json.loads(resp.read())
+        if not loc or not isinstance(loc, dict) or not loc.get("Key"):
+            return {"error": "Location not found"}
+        # Step 2: current conditions
+        cur_url = f"https://dataservice.accuweather.com/currentconditions/v1/{loc['Key']}?apikey={key}&details=true"
+        req = urllib.request.Request(cur_url, headers={"User-Agent": "StarGaze/1.0"})
+        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
+            data = json.loads(resp.read())
+        if not data or not isinstance(data, list):
+            return {"error": "No data"}
+        return data[0]
+    except urllib.error.HTTPError as e:
+        return {"error": f"AccuWeather API error ({e.code})", "status": e.code}
+    except Exception as e:
+        return {"error": f"AccuWeather request failed: {str(e)}"}
+

@@ -263,15 +263,17 @@ function _syncSimFromDate(d) {
   var now = new Date();
   var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   var simDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  _simDayOffset = Math.round((simDay - today) / 86400000);
+  _simDayOffset = Math.round((simDay.getTime() - today.getTime()) / 86400000);
   _updateSlidersFromSim();
 }
 function _updateSlidersFromSim() {
   var tm = document.getElementById('ar-daylight');
-  if (tm && !_sliderDragging) tm.value = _simMinutes;
+  if (tm && !_sliderDragging) tm.value = _minutesToSlider(_simMinutes);
   _updateClock();
   _applyTimeToEngine();
 }
+
+let _arControlsBound = false;
 
 function _initControls() {
   _offsetToSimDate();
@@ -283,105 +285,112 @@ function _initControls() {
     tm.max = 1439;
     tm.step = 1;
     tm.value = _prevSlider;
-    tm.addEventListener('input', function () {
-      _sliderDragging = true;
-      var sv = parseInt(this.value);
-      // Edge wrapping
-      if (sv <= 0 && _prevSlider <= 1) {
-        _simDayOffset--;
-        this.value = 1439;
-        _prevSlider = 1439;
-        _simMinutes = _sliderToMinutes(1439);
-        _updateClock();
-        _applyTimeToEngine();
-        return;
-      }
-      if (sv >= 1439 && _prevSlider >= 1438) {
-        _simDayOffset++;
-        this.value = 0;
-        _prevSlider = 0;
-        _simMinutes = _sliderToMinutes(0);
-        _updateClock();
-        _applyTimeToEngine();
-        return;
-      }
-      // Midnight crossing (720 = midnight on night-centered slider)
-      if (_prevSlider < 720 && sv >= 720) {
-        _simDayOffset++;
-      } else if (_prevSlider >= 720 && sv < 720) {
-        _simDayOffset--;
-      }
-      _prevSlider = sv;
-      _simMinutes = _sliderToMinutes(sv);
-      _updateClock();
-      _applyTimeToEngine();
-    });
-    tm.addEventListener('change', function () {
-      _sliderDragging = false;
-      _prevSlider = parseInt(this.value);
-      _simMinutes = _sliderToMinutes(_prevSlider);
-      _updateClock();
-      _applyTimeToEngine();
-    });
   }
 
-  var dateFields = {
-    yr: function (d, delta) {
-      d.setFullYear(d.getFullYear() + delta);
-    },
-    mo: function (d, delta) {
-      d.setMonth(d.getMonth() + delta);
-    },
-    dy: function (d, delta) {
-      d.setDate(d.getDate() + delta);
-    },
-  };
-  Object.keys(dateFields).forEach(function (f) {
-    var up = document.getElementById('ar-' + f + '-up'),
-      dn = document.getElementById('ar-' + f + '-down'),
-      fn = dateFields[f];
-    if (up)
-      up.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, 1);
-        _syncSimFromDate(d);
-      });
-    if (dn)
-      dn.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, -1);
-        _syncSimFromDate(d);
-      });
-  });
+  if (!_arControlsBound) {
+    _arControlsBound = true;
 
-  var timeFields = {
-    h: function (d, delta) {
-      d.setHours(d.getHours() + delta);
-    },
-    m: function (d, delta) {
-      d.setMinutes(d.getMinutes() + delta);
-    },
-    s: function (d, delta) {
-      d.setSeconds(d.getSeconds() + delta);
-    },
-  };
-  Object.keys(timeFields).forEach(function (f) {
-    var up = document.getElementById('ar-' + f + '-up'),
-      dn = document.getElementById('ar-' + f + '-down'),
-      fn = timeFields[f];
-    if (up)
-      up.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, 1);
-        _syncSimFromDate(d);
+    if (tm) {
+      tm.addEventListener('input', function () {
+        _sliderDragging = true;
+        var sv = parseInt(this.value);
+        // Edge wrapping
+        if (sv <= 0 && _prevSlider <= 1) {
+          _simDayOffset--;
+          this.value = 1439;
+          _prevSlider = 1439;
+          _simMinutes = _sliderToMinutes(1439);
+          _updateClock();
+          _applyTimeToEngine();
+          return;
+        }
+        if (sv >= 1439 && _prevSlider >= 1438) {
+          _simDayOffset++;
+          this.value = 0;
+          _prevSlider = 0;
+          _simMinutes = _sliderToMinutes(0);
+          _updateClock();
+          _applyTimeToEngine();
+          return;
+        }
+        // Midnight crossing (720 = midnight on night-centered slider)
+        if (_prevSlider < 720 && sv >= 720) {
+          _simDayOffset++;
+        } else if (_prevSlider >= 720 && sv < 720) {
+          _simDayOffset--;
+        }
+        _prevSlider = sv;
+        _simMinutes = _sliderToMinutes(sv);
+        _updateClock();
+        _applyTimeToEngine();
       });
-    if (dn)
-      dn.addEventListener('click', function () {
-        var d = _getSimDate();
-        fn(d, -1);
-        _syncSimFromDate(d);
+      tm.addEventListener('change', function () {
+        _sliderDragging = false;
+        _prevSlider = parseInt(this.value);
+        _simMinutes = _sliderToMinutes(_prevSlider);
+        _updateClock();
+        _applyTimeToEngine();
       });
-  });
+    }
+
+    var dateFields = {
+      yr: function (d, delta) {
+        d.setFullYear(d.getFullYear() + delta);
+      },
+      mo: function (d, delta) {
+        d.setMonth(d.getMonth() + delta);
+      },
+      dy: function (d, delta) {
+        d.setDate(d.getDate() + delta);
+      },
+    };
+    Object.keys(dateFields).forEach(function (f) {
+      var up = document.getElementById('ar-' + f + '-up'),
+        dn = document.getElementById('ar-' + f + '-down'),
+        fn = dateFields[f];
+      if (up)
+        up.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, 1);
+          _syncSimFromDate(d);
+        });
+      if (dn)
+        dn.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, -1);
+          _syncSimFromDate(d);
+        });
+    });
+
+    var timeFields = {
+      h: function (d, delta) {
+        d.setHours(d.getHours() + delta);
+      },
+      m: function (d, delta) {
+        d.setMinutes(d.getMinutes() + delta);
+      },
+      s: function (d, delta) {
+        d.setSeconds(d.getSeconds() + delta);
+      },
+    };
+    Object.keys(timeFields).forEach(function (f) {
+      var up = document.getElementById('ar-' + f + '-up'),
+        dn = document.getElementById('ar-' + f + '-down'),
+        fn = timeFields[f];
+      if (up)
+        up.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, 1);
+          _syncSimFromDate(d);
+        });
+      if (dn)
+        dn.addEventListener('click', function () {
+          var d = _getSimDate();
+          fn(d, -1);
+          _syncSimFromDate(d);
+        });
+    });
+  }
 
   if (_clockTimer) clearInterval(_clockTimer);
   _updateClock();

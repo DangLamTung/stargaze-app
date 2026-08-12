@@ -25,6 +25,7 @@ export const BORTLE_DEFAULT = 7;
 
 export const WEATHER_MODELS = [
   { value: 'best_match', label: '🤖 Best Match' },
+  { value: 'google_weathernext2_ensemble', label: '🧠 Google WeatherNext 2' },
   { value: 'ecmwf_ifs', label: '🌍 ECMWF 9km' },
   { value: 'gfs_seamless', label: '🇺🇸 GFS 22km' },
   { value: 'icon_seamless', label: '🇩🇪 ICON 13km' },

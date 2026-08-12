@@ -516,8 +516,11 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
     throw new Error('Invalid lat lng');
   }
 
+  const isEnsemble = model.includes('ensemble') || model.includes('weathernext');
+  const forecastEndpoint = isEnsemble ? 'https://ensemble-api.open-meteo.com/v1/ensemble' : `${BASE_URL}/forecast`;
+
   const url =
-    `${BASE_URL}/forecast?` +
+    `${forecastEndpoint}?` +
     new URLSearchParams({
       latitude: numLat,
       longitude: numLon,

@@ -125,17 +125,21 @@ def _accuweather(self):
 def _weatherapi(self):
     try:
         data = handle_api_weatherapi_current(self.path)
+        if isinstance(data, (bytes, str)):
+            data = json.loads(data)
         self._json(200, data)
-    except Exception:
-        self._json(500, {"error": "Failed"})
+    except Exception as e:
+        self._json(500, {"error": str(e)})
 
 
 def _owm(self):
     try:
         data = handle_api_owm_current(self.path)
+        if isinstance(data, (bytes, str)):
+            data = json.loads(data)
         self._json(200, data)
-    except Exception:
-        self._json(500, {"error": "Failed"})
+    except Exception as e:
+        self._json(500, {"error": str(e)})
 
 # ─── Favorites (stateful — reads/writes files) ───
 

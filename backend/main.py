@@ -45,7 +45,7 @@ _server_start_time = time.time() if 'time' in dir() else 0
 # ─── Simple in-memory rate limiter ───
 _rate_limit_store = {}
 _RATE_LIMIT_WINDOW = 60  # seconds
-_RATE_LIMIT_MAX = 30     # max requests per window per IP
+_RATE_LIMIT_MAX = 120    # max requests per window per IP
 
 def _check_rate_limit(client_ip):
     now = time.time()
@@ -69,7 +69,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         # Rate limit check
         if self.path.startswith("/api/"):
-            client_ip = self.client_address[0]
+            client_ip = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
             if not _check_rate_limit(client_ip):
                 self.send_response(429)
                 self.send_header("Content-type", "application/json")

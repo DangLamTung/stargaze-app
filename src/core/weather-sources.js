@@ -290,7 +290,7 @@ export async function fetchWindyCurrent(lat, lon) {
 
 /**
  * Windy.com Point Forecast timeseries — uses backend proxy (set WINDY_KEY env var).
- * Returns array of { time: Date, cloudCover: number, cloudCoverLow?: number, cloudCoverMid?: number, cloudCoverHigh?: number }.
+ * Returns array of { time: Date, cloudCover: number, cloudCoverLow?: number, cloudCoverMid?: number, cloudCoverHigh?: number, temperature?: number, windSpeed?: number, humidity?: number, dewPoint?: number, precip?: number }.
  */
 export async function fetchWindyForecast(lat, lon) {
   try {
@@ -305,6 +305,13 @@ export async function fetchWindyForecast(lat, lon) {
     const lclouds = data['lclouds-surface'] || [];
     const mclouds = data['mclouds-surface'] || [];
     const hclouds = data['hclouds-surface'] || [];
+    const cclouds = data['cclouds-surface'] || [];
+    const temps = data['temp-surface'] || [];
+    const winds = data['wind-surface'] || [];
+    const rhs = data['rh-surface'] || [];
+    const dews = data['dewpoint-surface'] || [];
+    const precips = data['precip-surface'] || [];
+
     for (let i = 0; i < ts.length; i++) {
       if (clouds[i] != null) {
         result.push({
@@ -313,6 +320,12 @@ export async function fetchWindyForecast(lat, lon) {
           cloudCoverLow: lclouds[i] != null ? Math.round(lclouds[i]) : null,
           cloudCoverMid: mclouds[i] != null ? Math.round(mclouds[i]) : null,
           cloudCoverHigh: hclouds[i] != null ? Math.round(hclouds[i]) : null,
+          convectiveClouds: cclouds[i] != null ? Math.round(cclouds[i]) : null,
+          temperature: temps[i] != null ? Math.round((temps[i] - 273.15) * 10) / 10 : null,
+          windSpeed: winds[i] != null ? Math.round(winds[i] * 3.6) : null,
+          humidity: rhs[i] != null ? Math.round(rhs[i]) : null,
+          dewPoint: dews[i] != null ? Math.round((dews[i] - 273.15) * 10) / 10 : null,
+          precip: precips[i] != null ? precips[i] : null,
         });
       }
     }

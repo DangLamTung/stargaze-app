@@ -604,7 +604,7 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
     });
 
   try {
-    const [
+    let [
       weatherRes,
       satData,
       metarData,
@@ -654,6 +654,54 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
 
     // Blend multiple forecast sources into Open-Meteo hourly data
     blendForecastClouds(parsed.hourly, metNoForecast, wapiForecast, windyForecast);
+
+    // Ensure windyData is available for consensus bar
+    if (!windyData && windyForecast?.length) {
+      const nowTs = Date.now();
+      let best = null;
+      let bestDiff = Infinity;
+      for (const pt of windyForecast) {
+        const d = Math.abs(pt.time.getTime() - nowTs);
+        if (d < bestDiff) {
+          bestDiff = d;
+          best = pt;
+        }
+      }
+      if (best && best.cloudCover != null) {
+        windyData = {
+          cloudCover: best.cloudCover,
+          cloudCoverLow: best.cloudCoverLow,
+          cloudCoverMid: best.cloudCoverMid,
+          cloudCoverHigh: best.cloudCoverHigh,
+          temperature: best.temperature,
+          windSpeed: best.windSpeed,
+          humidity: best.humidity,
+        };
+      }
+    }
+    if (!windyData && parsed.hourly?.length) {
+      const nowTs = Date.now();
+      let best = null;
+      let bestDiff = Infinity;
+      for (const h of parsed.hourly) {
+        const d = Math.abs(h.time.getTime() - nowTs);
+        if (d < bestDiff) {
+          bestDiff = d;
+          best = h;
+        }
+      }
+      if (best && best.cloudCover != null) {
+        windyData = {
+          cloudCover: best.cloudCover,
+          cloudCoverLow: best.cloudCoverLow,
+          cloudCoverMid: best.cloudCoverMid,
+          cloudCoverHigh: best.cloudCoverHigh,
+          temperature: best.temperature,
+          windSpeed: best.windSpeed,
+          humidity: best.humidity,
+        };
+      }
+    }
 
     const livePatch = buildLivePatch(
       satData,

@@ -1289,6 +1289,39 @@ main {
   font-weight: 500;
 }
 
+.hourly-cloud-bar-wrap {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 1px 0;
+}
+
+.hourly-cloud-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.now-cloud-layers-bar {
+  display: flex;
+  gap: 3px;
+  margin-top: 3px;
+  width: 100%;
+  justify-content: center;
+}
+
+.cloud-layer-pill {
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  font-family: monospace;
+}
+
 .ar-bortle-btn {
   z-index: 10;
   position: absolute;

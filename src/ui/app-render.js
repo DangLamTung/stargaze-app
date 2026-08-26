@@ -49,6 +49,26 @@ export function renderNowScore(state, $) {
   $('now-score-rating').style.color = nowData.ratingColor;
   $('now-cloud-pct').textContent = nowData.cloudCover != null ? `${nowData.cloudCover}%` : '--';
   $('now-cloud-pct').title = _cloudAnalysisFromNow(nowData);
+
+  // Cloud layers breakdown pills (Low / Mid / High)
+  const layerBar = $('now-cloud-layers-bar');
+  if (layerBar) {
+    const lo = nowData.cloudCoverLow;
+    const mi = nowData.cloudCoverMid;
+    const hi = nowData.cloudCoverHigh;
+    if (lo != null || mi != null || hi != null) {
+      layerBar.style.display = 'flex';
+      const pillLo = $('pill-cloud-low');
+      const pillMi = $('pill-cloud-mid');
+      const pillHi = $('pill-cloud-high');
+      if (pillLo) pillLo.textContent = `L:${lo != null ? lo + '%' : '--'}`;
+      if (pillMi) pillMi.textContent = `M:${mi != null ? mi + '%' : '--'}`;
+      if (pillHi) pillHi.textContent = `H:${hi != null ? hi + '%' : '--'}`;
+    } else {
+      layerBar.style.display = 'none';
+    }
+  }
+
   // Cloud base from METAR (if available)
   var cloudBaseEl = document.getElementById('now-cloud-base');
   if (cloudBaseEl) {
@@ -103,6 +123,17 @@ export function renderNowScore(state, $) {
           var wx = getWeatherDescription(p.weatherCode, !p.isDay);
           var label = wx ? wx.description : '--';
           var rainPct = p.precipProbability != null ? Math.round(p.precipProbability) : null;
+          var cPct = p.cloudCover != null ? Math.round(p.cloudCover) : 0;
+          var barColor =
+            cPct <= 20
+              ? '#00e676'
+              : cPct <= 40
+                ? '#76ff03'
+                : cPct <= 60
+                  ? '#ffea00'
+                  : cPct <= 80
+                    ? '#ff9800'
+                    : '#f44336';
           return (
             '<div class="hourly-item">' +
             '<span class="hourly-time">' +
@@ -114,6 +145,13 @@ export function renderNowScore(state, $) {
             '<span class="hourly-temp">' +
             Math.round(p.temperature) +
             '°</span>' +
+            '<div class="hourly-cloud-bar-wrap" title="Cloud cover: ' +
+            cPct +
+            '%"><div class="hourly-cloud-bar" style="width:' +
+            Math.max(4, cPct) +
+            '%;background:' +
+            barColor +
+            '"></div></div>' +
             (rainPct != null
               ? '<span class="hourly-rain">💧' + rainPct + '%</span>'
               : '<span class="hourly-rain">--</span>') +
@@ -168,7 +206,7 @@ export function renderNowScore(state, $) {
       satellite: '🛰️ Sat',
       metar: '🛫 METAR',
       accuweather: '🌩️ Accu',
-      windy: '🌀 Windy',
+      windy: '🌀 Windy (ECMWF)',
       weatherapi: '📡 WAPI',
       owm: '📡 OWM',
       wttr: '🌐 wttr',

@@ -116,6 +116,7 @@
                 <option value="satellite" selected>Global Satellite (Himawari/GOES)</option>
                 <option value="nasa">Historical Daily Clouds (NASA GIBS)</option>
                 <option value="radar">Precipitation Radar (RainViewer)</option>
+                <option value="windy">Wind & Streamlines (Windy)</option>
               </select>
             </div>
 
@@ -465,18 +466,22 @@
 
           <!-- Sky Map (Stellarium / VirtualSky) -->
           <section id="sky-section" class="sky-section animate-in">
-            <div class="section-title">
+            <div class="section-title" style="flex-wrap: wrap; gap: 6px">
               <span class="title-icon">🌌</span> Tonight's Sky
-              <a
-                id="stellarium-link"
-                href="https://stellarium-web.org"
-                target="_blank"
-                rel="noopener"
-                class="btn-stellarium"
-                style="margin-left: auto"
-              >
-                🔭 Open Stellarium
-              </a>
+              <div style="margin-left: auto; display: flex; gap: 6px; align-items: center">
+                <button id="windy-btn" type="button" class="btn-windy" title="Interactive Windy Weather Map">
+                  💨 Windy Map
+                </button>
+                <a
+                  id="stellarium-link"
+                  href="https://stellarium-web.org"
+                  target="_blank"
+                  rel="noopener"
+                  class="btn-stellarium"
+                >
+                  🔭 Open Stellarium
+                </a>
+              </div>
             </div>
             <div class="sky-map-wrapper">
               <div id="sky-map-container"></div>
@@ -927,6 +932,47 @@
       </aside>
     </div>
     <!-- /ui-layer -->
+
+    <!-- Windy Interactive Map Modal -->
+    <div id="windy-modal" class="modal-overlay">
+      <div class="modal windy-modal-content">
+        <button id="windy-modal-close" class="modal-close" type="button">&times;</button>
+        <div class="windy-modal-header">
+          <div class="windy-title-wrap">
+            <h3 class="windy-modal-title">💨 Windy Interactive Weather Map</h3>
+            <span id="windy-modal-loc" class="windy-modal-loc"></span>
+          </div>
+          <!-- Quick layer switchers -->
+          <div class="windy-layer-chips">
+            <button class="windy-chip active" data-overlay="wind" type="button">💨 Wind</button>
+            <button class="windy-chip" data-overlay="radar" type="button">🌧️ Radar</button>
+            <button class="windy-chip" data-overlay="clouds" type="button">☁️ Clouds</button>
+            <button class="windy-chip" data-overlay="satellite" type="button">🛰️ Satellite</button>
+            <button class="windy-chip" data-overlay="rain" type="button">🌧️ Rain</button>
+            <button class="windy-chip" data-overlay="temp" type="button">🌡️ Temp</button>
+          </div>
+        </div>
+
+        <div class="windy-iframe-wrap">
+          <iframe id="windy-iframe" src="" class="windy-iframe" title="Windy Weather Map" loading="lazy"></iframe>
+        </div>
+
+        <div class="windy-modal-footer">
+          <span
+            >Powered by <a href="https://www.windy.com" target="_blank" rel="noopener">Windy.com</a> (ECMWF & GFS)</span
+          >
+          <a
+            id="windy-direct-link"
+            href="https://www.windy.com"
+            target="_blank"
+            rel="noopener"
+            class="btn-submit btn-windy-ext"
+          >
+            🌐 Open on Windy.com ↗
+          </a>
+        </div>
+      </div>
+    </div>
 
     <!-- Reminder Modal -->
     <div id="reminder-modal" class="modal-overlay">

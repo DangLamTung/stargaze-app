@@ -1430,3 +1430,91 @@ def handle_api_accuweather_current(path):
     except Exception as e:
         return {"error": f"AccuWeather request failed: {str(e)}"}
 
+
+def handle_api_windy_forecast(path):
+    """Proxy Windy.com Point Forecast API (ECMWF/GFS/ICON). Set WINDY_KEY env var."""
+    lat, lon = _get_lat_lon_from_path(path)
+    qs = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
+    model = qs.get("model", ["ecmwf"])[0]
+
+    key = os.environ.get("WINDY_KEY", "") or os.environ.get("WINDY_API_KEY", "")
+    if not key:
+        return {"error": "WINDY_KEY not configured"}
+
+    url = "https://api.windy.com/api/point-forecast/v2"
+    payload = {
+        "lat": lat,
+        "lon": lon,
+        "model": model,
+        "parameters": ["temp", "wind", "windGust", "rh", "dewpoint", "clouds", "lclouds", "mclouds", "hclouds", "precip"],
+        "levels": ["surface"],
+        "key": key,
+    }
+
+    req_data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=req_data,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "StarGaze/1.0",
+        },
+    )
+    ssl_ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=12, context=ssl_ctx) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8")
+        except Exception:
+            pass
+        return {"error": f"Windy API error ({e.code}): {err_body}", "status": e.code}
+    except Exception as e:
+        return {"error": f"Windy request failed: {str(e)}"}
+
+
+def handle_api_windy_current(path):
+    """Get current conditions snapshot from Windy Point Forecast."""
+    data = handle_api_windy_forecast(path)
+    if not data or "error" in data:
+        return data
+
+    ts_list = data.get("ts", [])
+    if not ts_list:
+        return {"error": "No time series in Windy response"}
+
+    now_ms = time.time() * 1000
+    best_idx = 0
+    best_diff = float("inf")
+    for i, ts in enumerate(ts_list):
+        diff = abs(ts - now_ms)
+        if diff < best_diff:
+            best_diff = diff
+            best_idx = i
+
+    def _get(key):
+        arr = data.get(key, [])
+        return arr[best_idx] if best_idx < len(arr) else None
+
+    raw_temp = _get("temp-surface")
+    raw_wind = _get("wind-surface")
+    raw_rh = _get("rh-surface")
+    raw_dew = _get("dewpoint-surface")
+    raw_clouds = _get("clouds-surface")
+
+    temp_c = round(raw_temp - 273.15, 1) if raw_temp is not None else None
+    wind_kph = round(raw_wind * 3.6) if raw_wind is not None else None
+    dew_c = round(raw_dew - 273.15, 1) if raw_dew is not None else None
+
+    return {
+        "cloudCover": int(raw_clouds) if raw_clouds is not None else None,
+        "temperature": temp_c,
+        "humidity": int(raw_rh) if raw_rh is not None else None,
+        "windSpeed": wind_kph,
+        "dewPoint": dew_c,
+        "visibility": None,
+    }
+
+

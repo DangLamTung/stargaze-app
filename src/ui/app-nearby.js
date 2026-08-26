@@ -215,8 +215,10 @@ export function handleWeatherLayerChange(e, cloudAnimating, setCloudAnimating) {
   const type = e.target.value;
   setWeatherLayer(map, type);
 
+  $('satellite-band-control')?.classList.toggle('hidden', type !== 'satellite');
   $('nasa-date-control')?.classList.toggle('hidden', type !== 'nasa');
   $('animation-controls')?.classList.toggle('hidden', type !== 'satellite' && type !== 'radar');
+  $('satellite-opacity-control')?.classList.toggle('hidden', type === 'none');
 
   if (type === 'satellite' || type === 'radar') {
     if (cloudAnimating) {

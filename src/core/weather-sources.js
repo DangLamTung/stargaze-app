@@ -261,3 +261,54 @@ export async function fetchAccuWeatherCurrent(lat, lon) {
     return null;
   }
 }
+
+/**
+ * Windy.com Point Forecast current snapshot — uses backend proxy (set WINDY_KEY env var).
+ */
+export async function fetchWindyCurrent(lat, lon) {
+  try {
+    const res = await fetch(`/api/windy/current?lat=${lat}&lon=${lon}`);
+    if (!res.ok) return null;
+    const cur = await res.json();
+    if (!cur || cur.error) return null;
+    return {
+      cloudCover: cur.cloudCover ?? null,
+      temperature: cur.temperature ?? null,
+      humidity: cur.humidity ?? null,
+      windSpeed: cur.windSpeed ?? null,
+      visibility: cur.visibility ?? null,
+    };
+  } catch (e) {
+    console.warn('Windy current fetch failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Windy.com Point Forecast timeseries — uses backend proxy (set WINDY_KEY env var).
+ * Returns array of { time: Date, cloudCover: number }.
+ */
+export async function fetchWindyForecast(lat, lon) {
+  try {
+    const res = await fetch(`/api/windy/forecast?lat=${lat}&lon=${lon}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || data.error || !data.ts || !data['clouds-surface']) return null;
+
+    const result = [];
+    const ts = data.ts;
+    const clouds = data['clouds-surface'];
+    for (let i = 0; i < ts.length; i++) {
+      if (clouds[i] != null) {
+        result.push({
+          time: new Date(ts[i]),
+          cloudCover: Math.round(clouds[i]),
+        });
+      }
+    }
+    return result.length ? result : null;
+  } catch (e) {
+    console.warn('Windy forecast fetch failed:', e);
+    return null;
+  }
+}

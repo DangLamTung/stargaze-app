@@ -168,13 +168,14 @@ export function renderNowScore(state, $) {
       satellite: '🛰️ Sat',
       metar: '🛫 METAR',
       accuweather: '🌩️ Accu',
+      windy: '🌀 Windy',
       weatherapi: '📡 WAPI',
       owm: '📡 OWM',
       wttr: '🌐 wttr',
       metno: '🇳🇴 Met',
       'open-meteo': '🌍 OM',
     };
-    const priorityMap = { accuweather: 0, 'open-meteo': 1 };
+    const priorityMap = { accuweather: 0, windy: 1, 'open-meteo': 2 };
     consensusEl.innerHTML = Object.entries(allSources)
       .sort(([keyA, a], [keyB, b]) => {
         const pA = priorityMap[keyA] ?? 99;

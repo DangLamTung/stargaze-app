@@ -18,6 +18,8 @@ from .api import (
     handle_api_weatherapi_current,
     handle_api_weatherapi_forecast,
     handle_api_owm_current,
+    handle_api_windy_current,
+    handle_api_windy_forecast,
     handle_api_metar_proxy,
     handle_api_tile_logic,
     handle_api_tile_proxy_logic,
@@ -40,6 +42,7 @@ def _health(self):
         "uptime": time.time() - self.server._start_time if hasattr(self.server, '_start_time') else 0,
         "google_key_set": bool(os.environ.get("GOOGLE_MAPS_API_KEY", "")),
         "accuweather_key_set": bool(os.environ.get("ACCUWEATHER_KEY", "")),
+        "windy_key_set": bool(os.environ.get("WINDY_KEY", "") or os.environ.get("WINDY_API_KEY", "")),
     })
 
 
@@ -137,6 +140,22 @@ def _owm(self):
         data = handle_api_owm_current(self.path)
         if isinstance(data, (bytes, str)):
             data = json.loads(data)
+        self._json(200, data)
+    except Exception as e:
+        self._json(500, {"error": str(e)})
+
+
+def _windy_current(self):
+    try:
+        data = handle_api_windy_current(self.path)
+        self._json(200, data)
+    except Exception as e:
+        self._json(500, {"error": str(e)})
+
+
+def _windy_forecast(self):
+    try:
+        data = handle_api_windy_forecast(self.path)
         self._json(200, data)
     except Exception as e:
         self._json(500, {"error": str(e)})
@@ -261,6 +280,8 @@ ROUTES = [
     ("/api/accuweather/current",_accuweather,       ["GET"]),
     ("/api/weatherapi/current", _weatherapi,        ["GET"]),
     ("/api/owm/current",        _owm,               ["GET"]),
+    ("/api/windy/current",      _windy_current,     ["GET"]),
+    ("/api/windy/forecast",     _windy_forecast,    ["GET"]),
     ("/api/favorites",          _favorites_get,     ["GET"]),
     ("/api/favorites",          _favorites_post,    ["POST"]),
     ("/api/curated_spots",      _curated_spots,     ["GET"]),

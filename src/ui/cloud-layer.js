@@ -5,6 +5,7 @@
  */
 
 import { showToast } from './toast.js';
+import { addWindLayer, removeWindLayer } from './wind-layer.js';
 
 let apiData = null;
 let satelliteTimes = [];
@@ -12,7 +13,7 @@ let currentMap = null;
 let activeLayers = [];
 let animationTimer = null;
 let animationPosition = 0;
-let layerType = 'none'; // 'satellite' | 'radar' | 'none'
+let layerType = 'none'; // 'satellite' | 'radar' | 'windy' | 'nasa' | 'none'
 let currentOpacity = 0.5;
 
 const HIMAWARI_TIMES_URL = 'https://www.jma.go.jp/bosai/himawari/data/satimg/targetTimes_fd.json';
@@ -95,6 +96,7 @@ export function setWeatherLayer(map, type) {
 
   stopCloudAnimation();
   removeRadarRings();
+  removeWindLayer(map);
   activeLayers.forEach(l => {
     if (map.hasLayer(l)) map.removeLayer(l);
   });
@@ -103,16 +105,17 @@ export function setWeatherLayer(map, type) {
   if (type === 'none') return;
 
   if (type === 'windy') {
-    // Windy.com free wind tiles — use high opacity since tiles are semi-transparent
+    // Windy.com wind tiles + dynamic particle streamlines
     var windyLayer = L.tileLayer('https://tiles.windy.com/tiles/v9.0/wind/{z}/{x}/{y}.png', {
-      opacity: 0.85,
+      opacity: Math.max(0.4, currentOpacity),
       zIndex: 410,
       maxZoom: 19,
       maxNativeZoom: 12,
-      attribution: '&copy; <a href="https://windy.com">Windy.com</a>',
+      attribution: '&copy; <a href="https://windy.com" target="_blank" rel="noopener">Windy.com</a>',
     });
     windyLayer.addTo(map);
     activeLayers.push(windyLayer);
+    addWindLayer(map);
     return;
   }
 
@@ -230,7 +233,9 @@ function addRadarRings(map) {
     if (state && state.weatherData && state.weatherData.current && state.weatherData.current.visibility) {
       visM = state.weatherData.current.visibility;
     }
-  } catch (_) {}
+  } catch (_) {
+    /* fallback to default */
+  }
 
   var visKm = Math.round(visM / 1000);
   var color, fill;

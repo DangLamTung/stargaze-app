@@ -279,6 +279,46 @@ function updateAccuLabel() {
   }
 }
 
+// ─── Windy Interactive Modal ───
+let currentWindyOverlay = 'wind';
+
+function getWindyEmbedUrl(lat, lon, overlay = 'wind') {
+  const zoom = 8;
+  return `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&width=650&height=450&zoom=${zoom}&level=surface&overlay=${overlay}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=true&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1`;
+}
+
+function openWindyModal(overlay = currentWindyOverlay) {
+  currentWindyOverlay = overlay;
+  const lat = state.location?.latitude ?? 10.823;
+  const lon = state.location?.longitude ?? 106.629;
+  const name = state.location?.name || 'Current Location';
+
+  const locEl = $('windy-modal-loc');
+  if (locEl) locEl.textContent = `📍 ${name}`;
+
+  const iframe = $('windy-iframe');
+  if (iframe) {
+    iframe.src = getWindyEmbedUrl(lat, lon, overlay);
+  }
+
+  const directLink = $('windy-direct-link');
+  if (directLink) {
+    directLink.href = `https://www.windy.com/?${lat},${lon},8`;
+  }
+
+  document.querySelectorAll('.windy-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.overlay === overlay);
+  });
+
+  $('windy-modal')?.classList.add('visible');
+}
+
+function closeWindyModal() {
+  $('windy-modal')?.classList.remove('visible');
+  const iframe = $('windy-iframe');
+  if (iframe) iframe.src = '';
+}
+
 // Update status when settings opens
 $('settings-btn')?.addEventListener('click', async () => {
   $('settings-modal').classList.add('visible');
@@ -570,6 +610,15 @@ function init() {
     }
   });
 
+  // Windy Interactive Modal button & chips
+  $('windy-btn')?.addEventListener('click', () => openWindyModal());
+  $('windy-modal-close')?.addEventListener('click', closeWindyModal);
+  document.querySelectorAll('.windy-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      openWindyModal(chip.dataset.overlay || 'wind');
+    });
+  });
+
   // Opacity sliders
   $('cloud-opacity-slider')?.addEventListener('input', e => {
     const opacity = parseFloat(e.target.value);
@@ -723,6 +772,7 @@ function init() {
   document.addEventListener('click', e => {
     if (e.target.id === 'settings-modal') $('settings-modal').classList.remove('visible');
     if (e.target.id === 'reminder-modal') $('reminder-modal').classList.remove('visible');
+    if (e.target.id === 'windy-modal') closeWindyModal();
   });
 
   // Expose for nearby-spot clicks

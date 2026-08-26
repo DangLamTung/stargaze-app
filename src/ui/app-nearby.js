@@ -218,7 +218,12 @@ export function handleWeatherLayerChange(e, cloudAnimating, setCloudAnimating) {
   $('satellite-band-control')?.classList.toggle('hidden', type !== 'satellite');
   $('nasa-date-control')?.classList.toggle('hidden', type !== 'nasa');
   $('animation-controls')?.classList.toggle('hidden', type !== 'satellite' && type !== 'radar');
+  $('windy-map-controls')?.classList.toggle('hidden', !type.startsWith('windy'));
   $('satellite-opacity-control')?.classList.toggle('hidden', type === 'none');
+
+  document.querySelectorAll('.windy-map-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.layer === type);
+  });
 
   if (type === 'satellite' || type === 'radar') {
     if (cloudAnimating) {

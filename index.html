@@ -116,8 +116,47 @@
                 <option value="satellite" selected>Global Satellite (Himawari/GOES)</option>
                 <option value="nasa">Historical Daily Clouds (NASA GIBS)</option>
                 <option value="radar">Precipitation Radar (RainViewer)</option>
-                <option value="windy">Wind & Streamlines (Windy)</option>
+                <optgroup label="🌀 Windy Overlays">
+                  <option value="windy-clouds">☁️ Clouds Total (Windy)</option>
+                  <option value="windy-lowclouds">☁️ Low Clouds (Windy)</option>
+                  <option value="windy-cclouds">⛈️ Convective Clouds (Windy)</option>
+                  <option value="windy">💨 Wind & Streamlines (Windy)</option>
+                  <option value="windy-gust">💨 Wind Gusts (Windy)</option>
+                  <option value="windy-rain">🌧️ Rain & Radar (Windy)</option>
+                  <option value="windy-temp">🌡️ Temperature (Windy)</option>
+                </optgroup>
               </select>
+            </div>
+
+            <!-- Windy Quick Sub-Controls -->
+            <div id="windy-map-controls" class="hidden" style="margin-top: 0.4rem">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem">
+                <span style="font-size: 0.7rem; color: #38bdf8; font-weight: 600">🌀 Windy ECMWF 9km</span>
+                <button
+                  id="btn-open-windy-widget"
+                  type="button"
+                  style="
+                    background: none;
+                    border: none;
+                    color: var(--accent-cyan);
+                    font-size: 0.7rem;
+                    cursor: pointer;
+                    text-decoration: underline;
+                    padding: 0;
+                  "
+                >
+                  Interactive Widget ↗
+                </button>
+              </div>
+              <div class="windy-map-chips" style="display: flex; gap: 4px; flex-wrap: wrap">
+                <button class="windy-map-chip" data-layer="windy-clouds" type="button">☁️ Clouds</button>
+                <button class="windy-map-chip" data-layer="windy-lowclouds" type="button">Low</button>
+                <button class="windy-map-chip" data-layer="windy-cclouds" type="button">⛈️ Storm</button>
+                <button class="windy-map-chip" data-layer="windy" type="button">💨 Wind</button>
+                <button class="windy-map-chip" data-layer="windy-gust" type="button">Gusts</button>
+                <button class="windy-map-chip" data-layer="windy-rain" type="button">🌧️ Rain</button>
+                <button class="windy-map-chip" data-layer="windy-temp" type="button">🌡️ Temp</button>
+              </div>
             </div>
 
             <div

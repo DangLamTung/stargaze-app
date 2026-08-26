@@ -1446,7 +1446,10 @@ def handle_api_windy_forecast(path):
         "lat": lat,
         "lon": lon,
         "model": model,
-        "parameters": ["temp", "wind", "windGust", "rh", "dewpoint", "clouds", "lclouds", "mclouds", "hclouds", "precip"],
+        "parameters": [
+            "temp", "wind", "windGust", "rh", "dewpoint",
+            "clouds", "lclouds", "mclouds", "hclouds", "cclouds", "precip"
+        ],
         "levels": ["surface"],
         "key": key,
     }
@@ -1476,7 +1479,7 @@ def handle_api_windy_forecast(path):
 
 
 def handle_api_windy_current(path):
-    """Get current conditions snapshot from Windy Point Forecast."""
+    """Get current conditions snapshot from Windy Point Forecast including low/mid/high cloud layers."""
     data = handle_api_windy_forecast(path)
     if not data or "error" in data:
         return data
@@ -1503,18 +1506,27 @@ def handle_api_windy_current(path):
     raw_rh = _get("rh-surface")
     raw_dew = _get("dewpoint-surface")
     raw_clouds = _get("clouds-surface")
+    raw_lclouds = _get("lclouds-surface")
+    raw_mclouds = _get("mclouds-surface")
+    raw_hclouds = _get("hclouds-surface")
+    raw_cclouds = _get("cclouds-surface")
 
     temp_c = round(raw_temp - 273.15, 1) if raw_temp is not None else None
     wind_kph = round(raw_wind * 3.6) if raw_wind is not None else None
     dew_c = round(raw_dew - 273.15, 1) if raw_dew is not None else None
 
     return {
-        "cloudCover": int(raw_clouds) if raw_clouds is not None else None,
+        "cloudCover": int(round(raw_clouds)) if raw_clouds is not None else None,
+        "cloudCoverLow": int(round(raw_lclouds)) if raw_lclouds is not None else None,
+        "cloudCoverMid": int(round(raw_mclouds)) if raw_mclouds is not None else None,
+        "cloudCoverHigh": int(round(raw_hclouds)) if raw_hclouds is not None else None,
+        "convectiveClouds": int(round(raw_cclouds)) if raw_cclouds is not None else None,
         "temperature": temp_c,
-        "humidity": int(raw_rh) if raw_rh is not None else None,
+        "humidity": int(round(raw_rh)) if raw_rh is not None else None,
         "windSpeed": wind_kph,
         "dewPoint": dew_c,
         "visibility": None,
     }
+
 
 

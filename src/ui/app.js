@@ -612,10 +612,23 @@ function init() {
 
   // Windy Interactive Modal button & chips
   $('windy-btn')?.addEventListener('click', () => openWindyModal());
+  $('btn-open-windy-widget')?.addEventListener('click', () => openWindyModal());
   $('windy-modal-close')?.addEventListener('click', closeWindyModal);
   document.querySelectorAll('.windy-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       openWindyModal(chip.dataset.overlay || 'wind');
+    });
+  });
+
+  // Windy Map sub-controls chips
+  document.querySelectorAll('.windy-map-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const layer = chip.dataset.layer;
+      const sel = $('weather-layer-select');
+      if (sel && layer) {
+        sel.value = layer;
+        handleWeatherLayerChange({ target: { value: layer } });
+      }
     });
   });
 

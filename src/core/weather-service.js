@@ -258,6 +258,9 @@ function patchCurrentConditions(parsed, patch) {
 
   const slot = parsed.hourly[idx];
   if (patch.cloudCover != null) slot.cloudCover = patch.cloudCover;
+  if (patch.cloudCoverLow != null) slot.cloudCoverLow = patch.cloudCoverLow;
+  if (patch.cloudCoverMid != null) slot.cloudCoverMid = patch.cloudCoverMid;
+  if (patch.cloudCoverHigh != null) slot.cloudCoverHigh = patch.cloudCoverHigh;
   if (patch.temperature != null) slot.temperature = patch.temperature;
   if (patch.humidity != null) slot.humidity = patch.humidity;
   if (patch.windSpeed != null) slot.windSpeed = patch.windSpeed;
@@ -267,6 +270,9 @@ function patchCurrentConditions(parsed, patch) {
     parsed.current = { ...slot, time: new Date() };
   }
   if (patch.cloudCover != null) parsed.current.cloudCover = patch.cloudCover;
+  if (patch.cloudCoverLow != null) parsed.current.cloudCoverLow = patch.cloudCoverLow;
+  if (patch.cloudCoverMid != null) parsed.current.cloudCoverMid = patch.cloudCoverMid;
+  if (patch.cloudCoverHigh != null) parsed.current.cloudCoverHigh = patch.cloudCoverHigh;
   if (patch.temperature != null) parsed.current.temperature = patch.temperature;
   if (patch.humidity != null) parsed.current.humidity = patch.humidity;
   if (patch.windSpeed != null) parsed.current.windSpeed = patch.windSpeed;
@@ -367,6 +373,9 @@ function buildLivePatch(satData, metarData, weatherapiData, owmData, metNoData, 
 
   return {
     cloudCover,
+    cloudCoverLow: first('cloudCoverLow'),
+    cloudCoverMid: first('cloudCoverMid'),
+    cloudCoverHigh: first('cloudCoverHigh'),
     temperature: first('temperature'),
     humidity: first('humidity'),
     windSpeed: first('windSpeed'),
@@ -437,6 +446,15 @@ function blendForecastClouds(hourly, metNoTimeseries, wapiTimeseries, windyTimes
     let weightedSum = h.cloudCover * 2; // Open-Meteo base weight
     let totalWeight = 2;
 
+    let lowSum = h.cloudCoverLow != null ? h.cloudCoverLow * 2 : null;
+    let lowWeight = h.cloudCoverLow != null ? 2 : 0;
+
+    let midSum = h.cloudCoverMid != null ? h.cloudCoverMid * 2 : null;
+    let midWeight = h.cloudCoverMid != null ? 2 : 0;
+
+    let highSum = h.cloudCoverHigh != null ? h.cloudCoverHigh * 2 : null;
+    let highWeight = h.cloudCoverHigh != null ? 2 : 0;
+
     for (const src of sources) {
       let best = null;
       let bestDiff = Infinity;
@@ -447,13 +465,30 @@ function blendForecastClouds(hourly, metNoTimeseries, wapiTimeseries, windyTimes
           best = entry;
         }
       }
-      if (best && bestDiff < 30 * 60 * 1000 && best.cloudCover != null) {
-        weightedSum += best.cloudCover * src.weight;
-        totalWeight += src.weight;
+      if (best && bestDiff < 30 * 60 * 1000) {
+        if (best.cloudCover != null) {
+          weightedSum += best.cloudCover * src.weight;
+          totalWeight += src.weight;
+        }
+        if (best.cloudCoverLow != null) {
+          lowSum = (lowSum || 0) + best.cloudCoverLow * src.weight;
+          lowWeight += src.weight;
+        }
+        if (best.cloudCoverMid != null) {
+          midSum = (midSum || 0) + best.cloudCoverMid * src.weight;
+          midWeight += src.weight;
+        }
+        if (best.cloudCoverHigh != null) {
+          highSum = (highSum || 0) + best.cloudCoverHigh * src.weight;
+          highWeight += src.weight;
+        }
       }
     }
 
     h.cloudCover = Math.round(weightedSum / totalWeight);
+    if (lowWeight > 0) h.cloudCoverLow = Math.round(lowSum / lowWeight);
+    if (midWeight > 0) h.cloudCoverMid = Math.round(midSum / midWeight);
+    if (highWeight > 0) h.cloudCoverHigh = Math.round(highSum / highWeight);
   }
 }
 

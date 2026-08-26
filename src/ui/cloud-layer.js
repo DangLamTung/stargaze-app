@@ -104,18 +104,47 @@ export function setWeatherLayer(map, type) {
 
   if (type === 'none') return;
 
-  if (type === 'windy') {
-    // Windy.com wind tiles + dynamic particle streamlines
-    var windyLayer = L.tileLayer('https://tiles.windy.com/tiles/v9.0/wind/{z}/{x}/{y}.png', {
+  if (type === 'windy' || type === 'windy-gust') {
+    const tileType = type === 'windy-gust' ? 'gust' : 'wind';
+    const windyLayer = L.tileLayer(`https://tiles.windy.com/tiles/v9.0/${tileType}/{z}/{x}/{y}.png`, {
       opacity: Math.max(0.4, currentOpacity),
       zIndex: 410,
       maxZoom: 19,
       maxNativeZoom: 12,
-      attribution: '&copy; <a href="https://windy.com" target="_blank" rel="noopener">Windy.com</a>',
+      attribution: '&copy; <a href="https://windy.com" target="_blank" rel="noopener">Windy.com</a> Wind',
     });
     windyLayer.addTo(map);
     activeLayers.push(windyLayer);
     addWindLayer(map);
+    return;
+  }
+
+  if (
+    type === 'windy-clouds' ||
+    type === 'windy-lowclouds' ||
+    type === 'windy-cclouds' ||
+    type === 'windy-hclouds' ||
+    type === 'windy-rain' ||
+    type === 'windy-temp'
+  ) {
+    const tileMap = {
+      'windy-clouds': 'clouds',
+      'windy-lowclouds': 'lcloud',
+      'windy-cclouds': 'cclouds',
+      'windy-hclouds': 'hcloud',
+      'windy-rain': 'rain',
+      'windy-temp': 'temp',
+    };
+    const path = tileMap[type] || 'clouds';
+    const windyTileLayer = L.tileLayer(`https://tiles.windy.com/tiles/v9.0/${path}/{z}/{x}/{y}.png`, {
+      opacity: currentOpacity,
+      zIndex: 410,
+      maxZoom: 19,
+      maxNativeZoom: 12,
+      attribution: `&copy; <a href="https://windy.com" target="_blank" rel="noopener">Windy.com</a> ${path.toUpperCase()}`,
+    });
+    windyTileLayer.addTo(map);
+    activeLayers.push(windyTileLayer);
     return;
   }
 
@@ -199,6 +228,7 @@ export function stopCloudAnimation() {
 export function setCloudOpacity(opacity) {
   currentOpacity = opacity;
   activeLayers.forEach(l => l.setOpacity(opacity));
+  import('./wind-layer.js').then(m => m.setWindOpacity(opacity));
 }
 
 export function setCloudFrame(index) {

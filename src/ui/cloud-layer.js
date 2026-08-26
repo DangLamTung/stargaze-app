@@ -105,46 +105,46 @@ export function setWeatherLayer(map, type) {
   if (type === 'none') return;
 
   if (type === 'windy' || type === 'windy-gust') {
-    const tileType = type === 'windy-gust' ? 'gust' : 'wind';
-    const windyLayer = L.tileLayer(`https://tiles.windy.com/tiles/v9.0/${tileType}/{z}/{x}/{y}.png`, {
-      opacity: Math.max(0.4, currentOpacity),
-      zIndex: 410,
-      maxZoom: 19,
-      maxNativeZoom: 12,
-      attribution: '&copy; <a href="https://windy.com" target="_blank" rel="noopener">Windy.com</a> Wind',
-    });
-    windyLayer.addTo(map);
-    activeLayers.push(windyLayer);
     addWindLayer(map);
     return;
   }
 
-  if (
-    type === 'windy-clouds' ||
-    type === 'windy-lowclouds' ||
-    type === 'windy-cclouds' ||
-    type === 'windy-hclouds' ||
-    type === 'windy-rain' ||
-    type === 'windy-temp'
-  ) {
-    const tileMap = {
-      'windy-clouds': 'clouds',
-      'windy-lowclouds': 'lcloud',
-      'windy-cclouds': 'cclouds',
-      'windy-hclouds': 'hcloud',
-      'windy-rain': 'rain',
-      'windy-temp': 'temp',
-    };
-    const path = tileMap[type] || 'clouds';
-    const windyTileLayer = L.tileLayer(`https://tiles.windy.com/tiles/v9.0/${path}/{z}/{x}/{y}.png`, {
-      opacity: currentOpacity,
-      zIndex: 410,
-      maxZoom: 19,
-      maxNativeZoom: 12,
-      attribution: `&copy; <a href="https://windy.com" target="_blank" rel="noopener">Windy.com</a> ${path.toUpperCase()}`,
-    });
-    windyTileLayer.addTo(map);
-    activeLayers.push(windyTileLayer);
+  if (type === 'windy-clouds' || type === 'windy-lowclouds' || type === 'windy-cclouds' || type === 'windy-hclouds') {
+    // Combine real satellite clouds with animated wind streamlines
+    addWindLayer(map);
+    if (!satelliteTimes.length) {
+      fetch(HIMAWARI_TIMES_URL)
+        .then(r => r.json())
+        .then(data => {
+          satelliteTimes = data;
+          addHimawariSatelliteLayers(map);
+        })
+        .catch(() => {});
+    } else {
+      addHimawariSatelliteLayers(map);
+    }
+    return;
+  }
+
+  if (type === 'windy-rain') {
+    addWindLayer(map);
+    if (apiData?.radar?.past?.length) {
+      const frames = apiData.radar.past;
+      const colorScheme = 2;
+      frames.forEach((frame, i) => {
+        const layer = L.tileLayer(`${apiData.host}${frame.path}/256/{z}/{x}/{y}/${colorScheme}/1_1.png`, {
+          opacity: i === frames.length - 1 ? currentOpacity : 0,
+          zIndex: 400,
+          maxZoom: 19,
+          maxNativeZoom: 12,
+          attribution: '&copy; <a href="https://rainviewer.com">RainViewer</a>',
+        });
+        layer.time = new Date(frame.time * 1000);
+        layer.addTo(map);
+        activeLayers.push(layer);
+      });
+      addRadarRings(map);
+    }
     return;
   }
 

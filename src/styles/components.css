@@ -1511,3 +1511,43 @@ main {
   border-color: var(--accent-cyan);
   color: #fff;
 }
+
+/* ─── Map Windy HUD Overlay ─── */
+.map-windy-hud {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 460;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 20px;
+  color: #f1f5f9;
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.5),
+    0 0 10px rgba(56, 189, 248, 0.2);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.map-windy-hud.hidden {
+  display: none !important;
+}
+
+.windy-hud-badge {
+  padding: 2px 6px;
+  background: rgba(56, 189, 248, 0.15);
+  border-radius: 6px;
+  color: #38bdf8;
+  font-size: 0.65rem;
+  font-weight: 600;
+}

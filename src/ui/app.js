@@ -936,6 +936,7 @@ async function selectLocation(location) {
     renderNextHours();
     renderStargazingCards();
     renderCharts();
+    import('./app-nearby.js').then(m => m.updateWindyHud(state));
 
     initSkyMapView();
     renderTidePanel(location.latitude, location.longitude);

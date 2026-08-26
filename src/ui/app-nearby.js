@@ -219,11 +219,14 @@ export function handleWeatherLayerChange(e, cloudAnimating, setCloudAnimating) {
   $('nasa-date-control')?.classList.toggle('hidden', type !== 'nasa');
   $('animation-controls')?.classList.toggle('hidden', type !== 'satellite' && type !== 'radar');
   $('windy-map-controls')?.classList.toggle('hidden', !type.startsWith('windy'));
+  $('map-windy-hud')?.classList.toggle('hidden', !type.startsWith('windy'));
   $('satellite-opacity-control')?.classList.toggle('hidden', type === 'none');
 
   document.querySelectorAll('.windy-map-chip').forEach(chip => {
     chip.classList.toggle('active', chip.dataset.layer === type);
   });
+
+  updateWindyHud();
 
   if (type === 'satellite' || type === 'radar') {
     if (cloudAnimating) {
@@ -304,4 +307,19 @@ export function handleCloudAnimate(cloudAnimating, setCloudAnimating) {
       btn.classList.remove('active');
     }
   }
+}
+
+export function updateWindyHud(state = window._starGazeState) {
+  const hud = document.getElementById('map-windy-hud');
+  if (!hud) return;
+  const sel = document.getElementById('weather-layer-select');
+  const isWindy = sel && sel.value.startsWith('windy');
+  hud.classList.toggle('hidden', !isWindy);
+  if (!isWindy) return;
+
+  const cur = state?.weatherData?.current;
+  const wind = cur?.windSpeed != null ? `${cur.windSpeed} km/h` : '--';
+  const cloud = cur?.cloudCover != null ? `${cur.cloudCover}%` : '--';
+  const text = document.getElementById('windy-hud-text');
+  if (text) text.textContent = `Wind: ${wind} · Clouds: ${cloud}`;
 }

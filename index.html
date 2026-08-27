@@ -509,8 +509,39 @@
 
           <!-- Stargazing Score Cards -->
           <section class="score-cards-wrapper animate-in">
-            <div class="section-title"><span class="title-icon">⭐</span> 7-Night Forecast</div>
+            <div class="section-title forecast-section-header">
+              <div class="forecast-title-group">
+                <span class="title-icon">⭐</span>
+                <span id="forecast-section-title">7-Night Forecast</span>
+                <span id="forecast-range-badge" class="forecast-badge">7 Days</span>
+              </div>
+              <div class="forecast-header-actions">
+                <button
+                  id="forecast-extend-btn"
+                  type="button"
+                  class="btn-extend-forecast"
+                  title="Extend forecast to 14 nights"
+                  aria-expanded="false"
+                >
+                  <span class="btn-extend-icon">📅</span>
+                  <span class="btn-extend-text">Extend to 14 Days</span>
+                  <span class="btn-extend-arrow">▾</span>
+                </button>
+              </div>
+            </div>
             <div id="score-cards" class="score-cards"></div>
+            <div id="forecast-extend-footer" class="forecast-extend-footer">
+              <button
+                id="forecast-extend-footer-btn"
+                type="button"
+                class="btn-extend-footer"
+                aria-expanded="false"
+              >
+                <span class="btn-footer-icon">✨</span>
+                <span class="btn-footer-text">Load Extended 14-Day Forecast</span>
+                <span class="btn-footer-arrow">▾</span>
+              </button>
+            </div>
           </section>
 
           <!-- Sky Map (Stellarium / VirtualSky) -->

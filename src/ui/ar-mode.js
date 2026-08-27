@@ -79,10 +79,10 @@ export async function startARMode(latitude, longitude, onStop, _motionAlreadyGra
           stel = engine;
           engineReady = true;
 
-          stel.core.observer.fov = (arLensController.arFov * Math.PI) / 180;
+          stel.core.fov = (arLensController.arFov * Math.PI) / 180;
           arLensController.setupARZoom(canvasEl, fov => {
-            if (stel && stel.core && stel.core.observer) {
-              stel.core.observer.fov = (fov * Math.PI) / 180;
+            if (stel && stel.core) {
+              stel.core.fov = (fov * Math.PI) / 180;
             }
             arLensController.updateLensIndicator(videoEl, cameraManager.getLensInfo());
             arSkyMaskController.updateSkyGroundMask(smoothAltitude, fov);

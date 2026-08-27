@@ -10,9 +10,13 @@ const MAX_RECENT = 5;
 export const state = {
   location: null,
   weatherData: null,
+  weatherData14: null,
   scores: null,
+  scores14: null,
   bestNight: null,
+  forecastDays: 7,
   loading: false,
+  loadingExtended: false,
   bortleClass: 7,
   weatherModel: 'best_match',
 };

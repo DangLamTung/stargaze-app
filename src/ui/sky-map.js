@@ -26,6 +26,35 @@ function _apply() {
   if (ctx.lon != null) o.longitude = (ctx.lon * Math.PI) / 180;
   o.pitch = (ctx.alt * Math.PI) / 180;
   o.yaw = (ctx.bearing * Math.PI) / 180;
+  // FOV lives on core (not observer) — apply it so the zoom setting takes effect
+  if (ctx.fov != null && typeof _stel.core.fov === 'number') {
+    _stel.core.fov = (ctx.fov * Math.PI) / 180;
+  }
+}
+
+/**
+ * Keep the map viewing marker + all bearing controls in sync with the sky.
+ * The Stellarium sky must rotate together with the map — any bearing change
+ * (slider, right-click, AR, sky drag) funnels through here.
+ */
+function _syncBearingToMap() {
+  var b = Math.round(ctx.bearing);
+  var s = document.getElementById('sky-azimuth'),
+    v = document.getElementById('sky-az-val');
+  if (s) s.value = b;
+  if (v) v.textContent = b + '°';
+
+  var bs = document.getElementById('bearing-slider'),
+    bl = document.getElementById('bearing-label');
+  if (bs) bs.value = b;
+  if (bl) {
+    var dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    bl.textContent = b + '° ' + dirs[Math.round(b / 45) % 8];
+  }
+
+  if (ctx.lat != null && ctx.lon != null) {
+    import('./map-service.js').then(m => m.updateViewingBearing(ctx.lat, ctx.lon, ctx.bearing));
+  }
 }
 
 export async function initSkyMap(containerId, latitude, longitude, date) {
@@ -34,6 +63,16 @@ export async function initSkyMap(containerId, latitude, longitude, date) {
   ctx.lat = parseFloat(latitude);
   ctx.lon = parseFloat(longitude);
   ctx.date = date || null;
+
+  // Reuse the already-initialized engine instead of spawning a second WASM
+  // instance (avoids leaking canvases/contexts and stale render loops).
+  if (_stel) {
+    _apply();
+    _syncBearingToMap();
+    var fb = document.getElementById('sky-fallback');
+    if (fb) fb.style.display = 'none';
+    return _stel;
+  }
 
   el.innerHTML = '';
   _canvas = document.createElement('canvas');
@@ -68,6 +107,16 @@ export async function initSkyMap(containerId, latitude, longitude, date) {
         _stel = e;
         _apply();
         _initControls();
+        // When the sky map is dragged/rotated directly, rotate the map + sliders with it
+        try {
+          e.core.observer.change('yaw', function (obj) {
+            if (!obj || typeof obj.yaw !== 'number') return;
+            var norm = Math.round((((obj.yaw * 180) / Math.PI) % 360 + 360) % 360);
+            if (Math.abs(norm - ctx.bearing) < 0.5) return; // already in sync — avoid echo
+            ctx.bearing = norm;
+            _syncBearingToMap();
+          });
+        } catch (err) {}
         var fb = document.getElementById('sky-fallback');
         if (fb) fb.style.display = 'none';
       },
@@ -97,6 +146,7 @@ export function setSkyContext(o) {
 export function setSkyBearing(deg) {
   ctx.bearing = ((Number(deg) % 360) + 360) % 360;
   _apply();
+  _syncBearingToMap();
 }
 
 export function updateSkyMap(latitude, longitude, date) {
@@ -125,13 +175,7 @@ export function destroySkyMap() {
 window._skyAz = function (d) {
   ctx.bearing = ((d % 360) + 360) % 360;
   _apply();
-  var s = document.getElementById('sky-azimuth'),
-    v = document.getElementById('sky-az-val');
-  if (s) s.value = ctx.bearing;
-  if (v) v.textContent = ctx.bearing + '°';
-  if (ctx.lat != null && ctx.lon != null) {
-    import('./map-service.js').then(m => m.updateViewingBearing(ctx.lat, ctx.lon, ctx.bearing));
-  }
+  _syncBearingToMap();
 };
 window._skyTg = function (w) {
   var b = document.getElementById('sky-btn-' + w);
@@ -526,8 +570,8 @@ function _initControls() {
   var az = document.getElementById('sky-azimuth'),
     av = document.getElementById('sky-az-val');
   if (az) {
-    az.value = ctx.bearing;
-    if (av) av.textContent = ctx.bearing + '°';
+    az.value = Math.round(ctx.bearing);
+    if (av) av.textContent = Math.round(ctx.bearing) + '°';
   }
 
   var tm = document.getElementById('sky-time');

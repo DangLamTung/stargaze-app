@@ -124,7 +124,7 @@ export function setObserver(engine, { lat, lon, pitch, yaw, fov, utc } = {}) {
   if (lon != null) engine.core.observer.longitude = (lon * Math.PI) / 180;
   if (pitch != null) engine.core.observer.pitch = (pitch * Math.PI) / 180;
   if (yaw != null) engine.core.observer.yaw = (yaw * Math.PI) / 180;
-  if (fov != null) engine.core.observer.fov = (fov * Math.PI) / 180;
+  if (fov != null && engine.core) engine.core.fov = (fov * Math.PI) / 180; // FOV lives on core, not observer
   if (utc != null) engine.core.observer.utc = utc;
 }
 

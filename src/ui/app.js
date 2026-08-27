@@ -31,7 +31,7 @@ import {
   updateViewingBearing,
 } from './map-service.js';
 import { createAllCharts, resizeAllCharts } from './chart-service.js';
-import { initSkyMap, updateSkyMap, getStellariumUrl, setSkyContext } from './sky-map.js?v=33';
+import { initSkyMap, updateSkyMap, getStellariumUrl, setSkyContext } from './sky-map.js';
 import {
   initCloudSatelliteLayer,
   setWeatherLayer,
@@ -525,6 +525,10 @@ function init() {
 
   document.querySelectorAll('.chart-tab').forEach(tab => tab.addEventListener('click', handleChartTab));
 
+  // 14-day forecast extension toggles
+  $('forecast-extend-btn')?.addEventListener('click', handleToggleForecastDays);
+  $('forecast-extend-footer-btn')?.addEventListener('click', handleToggleForecastDays);
+
   // Mobile panel toggle & drag
   const panelToggleBtn = $('panel-toggle-btn');
   const infoPanel = $('info-panel');
@@ -900,6 +904,8 @@ async function selectLocation(location) {
 
   updateMapView();
   updateViewingBearing(location.latitude, location.longitude, 0);
+  // Reset the Stellarium sky to face North too, so it rotates WITH the map
+  import('./sky-map.js').then(m => m.setSkyBearing(0));
 
   const bearingCtrl = $('bearing-control');
   const bearingSlider = $('bearing-slider');
@@ -916,6 +922,11 @@ async function selectLocation(location) {
 
   // Phase 2: Fetch data in parallel (non-blocking for UI)
   setLoading(true);
+  state.forecastDays = 7;
+  state.scores14 = null;
+  state.weatherData14 = null;
+  state.loadingExtended = false;
+
   try {
     const [weatherData, bortleClass] = await Promise.all([
       getWeatherData(location.latitude, location.longitude, location.timezone || 'auto', state.weatherModel),
@@ -927,7 +938,7 @@ async function selectLocation(location) {
 
     state.weatherData = weatherData;
     const observedCloud = weatherData.current?.cloudCover ?? null;
-    state.scores = calculateAllScores(weatherData, bortleClass, observedCloud);
+    state.scores = calculateAllScores(weatherData, bortleClass, observedCloud).slice(0, 7);
     state.bestNight = findBestNight(state.scores);
     state.bortleClass = bortleClass;
 
@@ -1042,6 +1053,64 @@ function renderNextHours() {
 function renderStargazingCards() {
   _renderStargazingCards(state, $);
 }
+
+async function handleToggleForecastDays() {
+  if (!state.location || !state.scores || state.loadingExtended) return;
+
+  if (state.forecastDays === 14) {
+    state.forecastDays = 7;
+    state.bestNight = findBestNight(state.scores);
+    renderStargazingCards();
+    return;
+  }
+
+  if (state.scores14 && state.scores14.length) {
+    state.forecastDays = 14;
+    state.bestNight = findBestNight(state.scores14);
+    renderStargazingCards();
+    return;
+  }
+
+  state.loadingExtended = true;
+  const extendBtn = $('forecast-extend-btn');
+  const footerBtn = $('forecast-extend-footer-btn');
+  if (extendBtn) {
+    extendBtn.innerHTML =
+      '<span class="forecast-spinner"></span><span class="btn-extend-text">Loading 14 Days...</span>';
+    extendBtn.disabled = true;
+  }
+  if (footerBtn) {
+    footerBtn.innerHTML =
+      '<span class="forecast-spinner"></span><span class="btn-footer-text">Loading 14 Days...</span>';
+    footerBtn.disabled = true;
+  }
+
+  try {
+    const weatherData14 = await getWeatherData(
+      state.location.latitude,
+      state.location.longitude,
+      state.location.timezone || 'auto',
+      state.weatherModel,
+      14,
+    );
+    const observedCloud = (state.weatherData?.current?.cloudCover ?? weatherData14.current?.cloudCover) ?? null;
+    const scores14 = calculateAllScores(weatherData14, state.bortleClass, observedCloud).slice(0, 14);
+    state.weatherData14 = weatherData14;
+    state.scores14 = scores14;
+    state.forecastDays = 14;
+    state.bestNight = findBestNight(scores14);
+    showToast('✨ 14-day forecast loaded!', 'success');
+  } catch (err) {
+    console.error('Failed to load 14-day forecast:', err);
+    showToast(`Failed to load 14-day forecast: ${err.message}`, 'error');
+  } finally {
+    state.loadingExtended = false;
+    if (extendBtn) extendBtn.disabled = false;
+    if (footerBtn) footerBtn.disabled = false;
+    renderStargazingCards();
+  }
+}
+
 function renderCharts() {
   _renderCharts(state);
 }

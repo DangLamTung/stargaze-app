@@ -8,7 +8,7 @@ import { getCurrentConditions, getWeatherDescription } from '../core/weather-ser
 import { getNowScore, getTrendIcon, getTrendLabel } from '../core/sky-condition-now.js';
 import { createAllCharts } from './chart-service.js';
 import { setLocation, invalidateSize } from './map-service.js';
-import { initSkyMap, setSkyContext } from './sky-map.js?v=33';
+import { initSkyMap, setSkyContext } from './sky-map.js';
 
 export function renderLocationInfo(state, $) {
   const loc = state.location,
@@ -292,8 +292,42 @@ export function renderNowScore(state, $) {
 
 export function renderStargazingCards(state, $) {
   const container = $('score-cards');
+  const is14 = state.forecastDays === 14 && state.scores14 && state.scores14.length > 0;
+  const scores = is14 ? state.scores14 : state.scores;
   const best = state.bestNight;
-  if (!state.scores || !state.scores.length) {
+
+  const titleEl = $('forecast-section-title');
+  if (titleEl) titleEl.textContent = is14 ? '14-Night Forecast' : '7-Night Forecast';
+
+  const badgeEl = $('forecast-range-badge');
+  if (badgeEl) {
+    badgeEl.textContent = is14 ? '14 Days (Extended)' : '7 Days';
+    badgeEl.classList.toggle('extended', is14);
+  }
+
+  const extendBtn = $('forecast-extend-btn');
+  if (extendBtn) {
+    extendBtn.setAttribute('aria-expanded', is14 ? 'true' : 'false');
+    extendBtn.classList.toggle('active', is14);
+    if (!state.loadingExtended) {
+      extendBtn.innerHTML = is14
+        ? '<span class="btn-extend-icon">📅</span><span class="btn-extend-text">Show 7 Days</span><span class="btn-extend-arrow">▴</span>'
+        : '<span class="btn-extend-icon">📅</span><span class="btn-extend-text">Extend to 14 Days</span><span class="btn-extend-arrow">▾</span>';
+    }
+  }
+
+  const footerBtn = $('forecast-extend-footer-btn');
+  if (footerBtn) {
+    footerBtn.setAttribute('aria-expanded', is14 ? 'true' : 'false');
+    footerBtn.classList.toggle('active', is14);
+    if (!state.loadingExtended) {
+      footerBtn.innerHTML = is14
+        ? '<span class="btn-footer-icon">▴</span><span class="btn-footer-text">Collapse to 7-Night Forecast</span>'
+        : '<span class="btn-footer-icon">✨</span><span class="btn-footer-text">Load Extended 14-Day Forecast</span><span class="btn-footer-arrow">▾</span>';
+    }
+  }
+
+  if (!scores || !scores.length) {
     container.innerHTML = '<p class="no-data">No forecast data</p>';
     return;
   }
@@ -320,19 +354,24 @@ export function renderStargazingCards(state, $) {
     $('best-night-time').textContent = `Best time: ${bt}`;
   }
 
-  container.innerHTML = state.scores
+  container.innerHTML = scores
     .map((n, i) => {
       const isBest = best && n.date === best.date;
       const isToday = n.date === new Date().toISOString().split('T')[0];
+      const isExtended = i >= 7;
       const g = getScoreGradient(n.score);
       const circ = 2 * Math.PI * 40,
         off = circ * (1 - n.score / 100);
-      return `<div class="score-card ${isBest ? 'best-night' : ''} ${isToday ? 'today' : ''}" data-index="${i}">
-        <div class="badges-container">${isBest ? '<div class="best-badge">✨ BEST</div>' : ''}${isToday ? '<div class="today-badge">Tonight</div>' : ''}</div>
+      return `<div class="score-card ${isBest ? 'best-night' : ''} ${isToday ? 'today' : ''} ${isExtended ? 'extended-card' : ''}" data-index="${i}">
+        <div class="badges-container">
+          ${isBest ? '<div class="best-badge">✨ BEST</div>' : ''}
+          ${isToday ? '<div class="today-badge">Tonight</div>' : ''}
+          ${isExtended ? '<div class="week2-badge">Wk 2</div>' : ''}
+        </div>
         <div class="score-card-date"><span class="score-day">${n.dayOfWeek}</span><span class="score-date-num">${n.dayOfMonth}</span><span class="score-month">${n.month}</span></div>
         <div class="score-gauge"><svg viewBox="0 0 100 100" class="gauge-svg"><circle cx="50" cy="50" r="40" class="gauge-bg"/><circle cx="50" cy="50" r="40" class="gauge-fill" style="stroke-dasharray:${circ};stroke-dashoffset:${off};stroke:${g[0]}"/></svg><div class="score-value" style="color:${g[0]}">${n.score}</div><div class="score-label">${n.rating}</div></div>
         <div class="score-moon">${n.moonPhaseIcon} ${n.moonPhaseName}</div>
-        <div class="score-metrics"><div class="metric"><span class="metric-icon">☁️</span><span class="metric-value">${n.avgCloudCover != null ? `${n.avgCloudCover}%` : '--'}</span></div><div class="metric"><span class="metric-icon">💧</span><span class="metric-value">${n.avgHumidity}%</span></div><div class="metric"><span class="metric-icon">👁️</span><span class="metric-value">${n.avgVisibility != null && !isNaN(n.avgVisibility) ? (n.avgVisibility / 1000).toFixed(0) + 'km' : '--'}</span></div><div class="metric"><span class="metric-icon">�️</span><span class="metric-value">${n.avgPM25 != null ? n.avgPM25 + 'μg' : '--'}</span></div></div>
+        <div class="score-metrics"><div class="metric"><span class="metric-icon">☁️</span><span class="metric-value">${n.avgCloudCover != null ? `${n.avgCloudCover}%` : '--'}</span></div><div class="metric"><span class="metric-icon">💧</span><span class="metric-value">${n.avgHumidity}%</span></div><div class="metric"><span class="metric-icon">👁️</span><span class="metric-value">${n.avgVisibility != null && !isNaN(n.avgVisibility) ? (n.avgVisibility / 1000).toFixed(0) + 'km' : '--'}</span></div><div class="metric"><span class="metric-icon">🌫️</span><span class="metric-value">${n.avgPM25 != null ? n.avgPM25 + 'μg' : '--'}</span></div></div>
         <div class="cloud-layers" style="display:flex;gap:6px;justify-content:center;font-size:9px;color:#94a3b8;padding:2px 0">${_cloudLayerBadge('L', n.avgCloudCoverLow)}${_cloudLayerBadge('M', n.avgCloudCoverMid)}${_cloudLayerBadge('H', n.avgCloudCoverHigh)}</div>
         <div class="score-card-actions"><button class="btn-remind" onclick="window.openReminder(${i})">🔔 Remind</button><button class="btn-calendar" onclick="window.addToCalendar(${i})">📅 Calendar</button></div>
       </div>`;

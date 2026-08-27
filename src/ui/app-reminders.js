@@ -11,10 +11,15 @@ import {
 } from '../core/reminder-service.js';
 import { showToast } from './toast.js';
 
+function getActiveScores(state) {
+  return state.forecastDays === 14 && state.scores14 ? state.scores14 : state.scores;
+}
+
 export function setupReminderModal(state) {
   window.openReminder = function (i) {
-    if (!state.scores || !state.scores[i]) return;
-    const night = state.scores[i];
+    const scores = getActiveScores(state);
+    if (!scores || !scores[i]) return;
+    const night = scores[i];
     const modal = document.getElementById('reminder-modal');
     document.getElementById('reminder-night-date').textContent = new Date(night.date).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -28,8 +33,9 @@ export function setupReminderModal(state) {
   };
 
   window.addToCalendar = function (i) {
-    if (!state.scores || !state.scores[i]) return;
-    const night = state.scores[i];
+    const scores = getActiveScores(state);
+    if (!scores || !scores[i]) return;
+    const night = scores[i];
     createStargazingReminder(night, `${state.location.name}, ${state.location.country}`);
     showToast('Calendar event downloaded!', 'success');
   };
@@ -39,7 +45,8 @@ export function setupReminderModal(state) {
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const i = parseInt(document.getElementById('reminder-score-index').value, 10);
-      const night = state.scores[i];
+      const scores = getActiveScores(state);
+      const night = scores ? scores[i] : null;
       if (!night) return;
       const email = document.getElementById('reminder-email').value.trim();
       const method = document.querySelector('input[name="reminder-method"]:checked').value;

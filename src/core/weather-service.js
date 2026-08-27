@@ -554,9 +554,9 @@ export function getCurrentConditions(weatherData) {
 }
 
 /**
- * Fetch combined weather data: past 7 days + next 7 days
+ * Fetch combined weather data: past 7 days + next N forecast days (default: 7, max: 16)
  */
-export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf_ifs025') {
+export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf_ifs025', forecastDays = 7) {
   const numLat = parseFloat(lat);
   const numLon = parseFloat(lon);
   if (isNaN(numLat) || isNaN(numLon) || numLat < -90 || numLat > 90 || numLon < -180 || numLon > 180) {
@@ -565,6 +565,8 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
 
   const isEnsemble = model.includes('ensemble') || model.includes('weathernext');
   const forecastEndpoint = isEnsemble ? 'https://ensemble-api.open-meteo.com/v1/ensemble' : `${BASE_URL}/forecast`;
+  // Request N + 1 days so every night (sunset to next day's sunrise) has complete boundary data
+  const apiForecastDays = Math.min(16, forecastDays + 1);
 
   const url =
     `${forecastEndpoint}?` +
@@ -575,7 +577,7 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
       daily: DAILY_PARAMS,
       current: CURRENT_PARAMS,
       past_days: 7,
-      forecast_days: 7,
+      forecast_days: apiForecastDays,
       timezone: timezone,
       models: model,
     });
@@ -587,7 +589,7 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
       latitude: numLat,
       longitude: numLon,
       hourly: PRESSURE_LEVEL_PARAMS,
-      forecast_days: 7,
+      forecast_days: apiForecastDays,
       timezone: timezone,
       models: model,
     });
@@ -599,7 +601,7 @@ export async function getWeatherData(lat, lon, timezone = 'auto', model = 'ecmwf
       latitude: numLat,
       longitude: numLon,
       hourly: AIR_QUALITY_PARAMS,
-      forecast_days: 7,
+      forecast_days: apiForecastDays,
       timezone: timezone,
     });
 
